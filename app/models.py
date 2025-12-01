@@ -149,7 +149,7 @@ class Ranking(Base):
     issue: Mapped[str] = mapped_column(SmallInteger, index=True)
     rank: Mapped[int] = mapped_column(Integer, index=True)
     bvid: Mapped[str] = mapped_column(String(12), ForeignKey('video.bvid'), index=True)
-    count: Mapped[int] = mapped_column(SmallInteger)
+    count: Mapped[int] = mapped_column(SmallInteger, nullable=True)
     point: Mapped[int] = mapped_column(Integer)
     view: Mapped[int] = mapped_column(Integer)
     favorite: Mapped[int] = mapped_column(Integer)

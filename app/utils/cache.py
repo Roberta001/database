@@ -39,7 +39,7 @@ class Cache:
     async def load_videos(self, session: AsyncSession):
         """按需加载歌曲"""
         result = await session.execute(select(Video.bvid, Video.song_id))
-        self.video_map = {r[1]: r[0] for r in result.all()}
+        self.video_map = {r[0]: r[1] for r in result.all()}
 
     async def load_song_artist_relations(self, session: AsyncSession, rel_tables: Dict[Type, Table]):
         """按需加载歌曲-艺术家关系"""

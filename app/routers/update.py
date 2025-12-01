@@ -112,7 +112,6 @@ async def import_rankings(
     cache = Cache()
     
     try:
-        await execute_import_songs(session, df, strict, cache)
         await execute_import_rankings(session, board, part, issue, strict, cache)
 
         await session.commit()
@@ -120,6 +119,21 @@ async def import_rankings(
     except IntegrityError as e:
         await session.rollback()
         print("❌ 插入数据出错:", e)
+
+
+@router.get('/check_ranking')
+async def check_ranking(
+    board: str = Query(),
+    part: str = Query('main'),
+    issue: int = Query()
+):
+    df: pd.DataFrame = read_excel(
+        generate_board_file_path(board, part, issue),
+    ).assign( board = board, part = part, issue = issue)
+    
+    return validate_excel(df)
+    
+    
 
 @router.get('/batch_ranking')
 async def batch_import_ranking(

@@ -25,3 +25,7 @@
 对于以后的文件：只有视频标题（title）字段允许为空，其他检测到空白一律打回。
 
 对于以前的文件 title、author、vocal、synthesizer、uploader 可以为空，但是这种数据记录不会更新数据库中的 vocal、synthesizer、author、uploader。
+
+## 数据更新依据
+
+只有排名文件的主榜是更新歌曲信息的依据。新曲榜、总数据在上传的时候都不会更新歌曲信息。

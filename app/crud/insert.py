@@ -147,30 +147,33 @@ async def insert_videos(
 
     await cache.ensure_loaded(session, ['video_map', 'song_map', 'artist_maps'])
         
-    missing_video_df: pd.DataFrame = (
-        df.loc[~df['bvid'].isin(cache.video_map.keys())]
-        .assign(
-            song_id= lambda df: df['name'].map(cache.song_map),
-            uploader_id=lambda df: df['uploader'].map(cache.artist_maps[Uploader])
+    if not df.empty:
+        missing_video_df: pd.DataFrame = (
+            df.loc[~df['bvid'].isin(cache.video_map.keys())]
+            .assign(
+                song_id= lambda df: df['name'].map(cache.song_map),
+                uploader_id=lambda df: df['uploader'].map(cache.artist_maps[Uploader])
+            )
+            .rename(columns={'image_url': 'thumbnail'})[['bvid', 'title', 'pubdate', 'song_id', 'uploader_id', 'copyright', 'thumbnail']]
         )
-        .rename(columns={'image_url': 'thumbnail'})[['bvid', 'title', 'pubdate', 'song_id', 'uploader_id', 'copyright', 'thumbnail']]
-    )
+        
+        print(missing_video_df['bvid'].to_list())
 
-    # 允许 uploader 为空，只是需要防止出现 NaN
-    missing_video_df["uploader_id"] = missing_video_df["uploader_id"].astype("Int64")
-    missing_video_df = missing_video_df.replace({pd.NA: None})
+        # 允许 uploader 为空，只是需要防止出现 NaN
+        missing_video_df["uploader_id"] = missing_video_df["uploader_id"].astype("Int64")
+        missing_video_df = missing_video_df.replace({pd.NA: None})
 
-    if (len(missing_video_df) > 0):
-        missing_video_records = missing_video_df.to_dict(orient='records')
-        excluded = pg_insert(Video).excluded
-        stmt = pg_insert(Video).values(missing_video_records).on_conflict_do_update(
-            index_elements=['bvid'],
-            set_={field: excluded[field] for field in [
-                'title', 'pubdate', 'uploader_id', 'song_id', 'copyright', 'thumbnail'
-            ]}
-        )
-        await session.execute(stmt)
-        cache.video_map.update({v['bvid']: v['song_id'] for v in missing_video_df.to_dict('records')})
+        if (len(missing_video_df) > 0):
+            missing_video_records = missing_video_df.to_dict(orient='records')
+            excluded = pg_insert(Video).excluded
+            stmt = pg_insert(Video).values(missing_video_records).on_conflict_do_update(
+                index_elements=['bvid'],
+                set_={field: excluded[field] for field in [
+                    'title', 'pubdate', 'uploader_id', 'song_id', 'copyright', 'thumbnail'
+                ]}
+            )
+            await session.execute(stmt)
+            cache.video_map.update({v['bvid']: v['song_id'] for v in missing_video_df.to_dict('records')})
         
 # =============   直接被调用的操作  =========
         
@@ -261,17 +264,29 @@ async def execute_import_rankings(
     for start in range(0, total, BATCH_SIZE):
         end = start + BATCH_SIZE
         batch_df = df.iloc[start: end]
-        await insert_artists(session, batch_df, cache)
-        new_songs = await insert_songs(session, batch_df, cache)
-        if new_songs:
-            await insert_relations(session, batch_df, strict, new_songs, cache)
-        await insert_videos(session, batch_df, cache)
+        if (part != 'new'):
+            await insert_artists(session, batch_df, cache)
+            new_songs = await insert_songs(session, batch_df, cache)
+            if new_songs:
+                await insert_relations(session, batch_df, strict, new_songs, cache)
+            await insert_videos(session, batch_df, cache)
 
-        records = batch_df.assign(
-            board=board,
-            issue=issue,
-            part=part
-        )[['board', 'part', 'issue', 'rank','bvid','count','point','view','favorite','coin','like','view_rank','favorite_rank','coin_rank','like_rank']].to_dict(orient='records')
+            insert_df = batch_df.assign(
+                board=board,
+                issue=issue,
+                part=part
+            )[['board', 'part', 'issue', 'rank','bvid','count','point','view','favorite','coin','like','view_rank','favorite_rank','coin_rank','like_rank']]
+            insert_df['count'] = insert_df['count'].astype("Int64")
+            insert_df['count'] = insert_df['count'].replace({pd.NA: None})
+            records = insert_df.to_dict(orient='records')
+        
+        else: 
+            insert_df = batch_df.assign(
+                board=board,
+                issue=issue,
+                part=part
+            )[['board', 'part', 'issue', 'rank','bvid','point','view','favorite','coin','like','view_rank','favorite_rank','coin_rank','like_rank']]
+            records = insert_df.to_dict(orient='records')
         
         insert_stmt = pg_insert(Ranking).values(records).on_conflict_do_nothing()
         await session.execute(insert_stmt)
