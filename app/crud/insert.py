@@ -159,6 +159,8 @@ async def insert_videos(
         
         # 允许 uploader 为空，只是需要防止出现 NaN
         missing_video_df["uploader_id"] = missing_video_df["uploader_id"].astype("Int64")
+        # 因为有莫名其妙缺copyright的情况，可能是以前，唉随便了
+        missing_video_df["copyright"] = missing_video_df["copyright"].astype("Int64")
         missing_video_df = missing_video_df.replace({pd.NA: None})
 
         if (len(missing_video_df) > 0):
@@ -255,7 +257,9 @@ async def execute_import_rankings(
     ).assign( board = board, part = part, issue = issue)
     
     if strict:
-        validate_excel(df)
+        errors = validate_excel(df)
+        if len(errors) >= 1:
+            raise HTTPException(400, "\n".join(errors))
 
     
     total = len(df)

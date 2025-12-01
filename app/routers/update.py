@@ -131,7 +131,10 @@ async def check_ranking(
         generate_board_file_path(board, part, issue),
     ).assign( board = board, part = part, issue = issue)
     
-    return validate_excel(df)
+    errors = validate_excel(df)
+    return {
+        'detail': '\n'.join(errors)
+    }
     
     
 

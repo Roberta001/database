@@ -12,10 +12,10 @@ def validate_excel(df: pd.DataFrame):
         if not invalid_title.empty:
             for _, row in invalid_title.iterrows():
                 message = f"第 {row['__row__']} 行的 {column_name} 为空"
-                print(message)
                 errors.append(message)
-    if len(errors) > 1:
-        raise HTTPException(400, "\n".join(errors))
+    
+    return errors
+
     
 def read_excel(filepath: str) -> pd.DataFrame:
     """
