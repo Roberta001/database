@@ -5,23 +5,9 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload, aliased
 
 from app.session import get_async_session, engine
-from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, song_producer, song_synthesizer, song_vocalist, Ranking, Snapshot
+from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, Ranking, Snapshot, TABLE_MAP, REL_MAP
 
 from datetime import datetime
-
-TABLE_MAP = {
-    'producer': Producer,
-    'synthesizer': Synthesizer,
-    'vocalist': Vocalist,
-    'uploader': Uploader
-}
-
-REL_MAP = {
-    'producer': song_producer,
-    'synthesizer': song_synthesizer,
-    'vocalist': song_vocalist,
-}
-
 
 router = APIRouter(prefix='/select', tags=['select'])
 

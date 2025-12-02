@@ -6,6 +6,5 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.session import get_async_session
 from app.models import Producer, Song
-from app.schemas.entry import ProducerEdit, ProducerSongAdd, ProducerSongRemove, ProducerSongOut
 
 router = APIRouter(prefix="/producer", tags=["producer"])

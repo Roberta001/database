@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Body, HTTPException
+from fastapi import APIRouter, Depends, Query 
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, and_
@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from app.session import get_async_session
-from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, song_producer, song_synthesizer, song_vocalist, Snapshot, Ranking
+from app.models import Song, Producer
 
 from ..utils import validate_excel, read_excel
 from ..utils.filename import generate_board_file_path

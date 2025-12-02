@@ -5,6 +5,9 @@ from datetime import datetime
 from datetime import date as datetype
 from typing import List
 
+
+
+
 metadata = MetaData(schema="public")
 class Base(DeclarativeBase):
     metadata = metadata
@@ -36,7 +39,7 @@ song_vocalist = Table(
 
 class Artist:
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text, unique=True)
 
 class Producer(Artist, Base):
     """
@@ -171,3 +174,18 @@ class Ranking(Base):
     __table_args__ = (
         Index('idx_ranking_board_part', 'board', 'part'),
     )
+    
+
+TABLE_MAP = {
+    'producer': Producer,
+    'synthesizer': Synthesizer,
+    'vocalist': Vocalist,
+    'uploader': Uploader
+}
+
+REL_MAP = {
+    'producer': song_producer,
+    'synthesizer': song_synthesizer,
+    'vocalist': song_vocalist,
+}
+
