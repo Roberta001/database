@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload, aliased
 
-from app.session import get_async_session, engine
+from app.session import get_async_session
 from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, Ranking, Snapshot, TABLE_MAP, REL_MAP
 from app.crud.select import get_songs_detail
 from datetime import datetime
@@ -94,12 +94,12 @@ async def artist_songs(
 async def ranking(
     board: str = Query("vocaloid-daily"),
     part: str = Query("main"),
-    issue: int = Query(1, ge=-1),
+    issue: int | None = Query(ge=1),
     page: int = Query(1, ge=1),
     page_size: int = Query(1, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
-    if (issue == -1):
+    if (issue == None):
         result = await session.execute(
             select(func.max(Ranking.issue))
             .where(Ranking.board == board, Ranking.part == part)
@@ -154,6 +154,22 @@ async def ranking(
         'data': data,
         'total': total
     }
+    
+@router.get('/latest_ranking')
+async def latest_ranking(
+    board: str = Query("vocaloid-daily"),
+    session: AsyncSession = Depends(get_async_session)
+):
+    stmt = (
+        select(Ranking.issue)
+        .select_from(Ranking)
+        .where(Ranking.board == board)
+        .order_by(Ranking.issue.desc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    issue = int(result.scalars().one())
+    return issue
     
 @router.get("/song")
 async def get_song(
