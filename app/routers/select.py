@@ -180,7 +180,7 @@ async def get_song(
 
 @router.get("/song/ranking")
 async def song_ranking(
-    id: str = Query(),
+    id: int = Query(),
     board: str = Query("vocaloid-daily"),
     page: int = Query(1, ge=1),
     page_size: int = Query(1, ge=1),
@@ -198,10 +198,60 @@ async def song_ranking(
             Ranking.issue.desc(),
             Ranking.rank.asc()
         )
+        .offset((page-1) * page_size)
+        .limit(page_size)
     )
+    
+    result = await session.execute(stmt)
+    data = result.scalars().all()
+    
+    totalResult = await session.execute(
+        select(func.count())
+        .where(and_(
+            Ranking.board == board,
+            Ranking.part == "main",
+            Ranking.song_id == id
+        ))
+    )
+    total = totalResult.scalar_one()
+    return {
+        'status': 'ok',
+        'data': data,
+        'total': total
+    }
 
-@router.get("/song/snapshot/by_date")
-async def snapshot(
+@router.get("/video/snapshot")
+async def song_snapshot(
+    bvid: str = Query(),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(1, ge=1),
+    session: AsyncSession = Depends(get_async_session)
+):
+    stmt = (
+        select(Snapshot)
+        .where(Snapshot.bvid == bvid)
+        .order_by(Snapshot.date.desc())
+        .offset((page-1) * page_size)
+        .limit(page_size)
+    )
+    result = await session.execute(stmt)
+    data = result.scalars().all()
+    
+    totalResult = await session.execute(
+        select(func.count())
+        .where(Snapshot.bvid == bvid)
+    )
+    total = totalResult.scalar_one()
+    
+    return {
+        'status': 'ok',
+        'data': data,
+        'total': total
+    }
+
+
+@router.get("/video/snapshot/by_date")
+async def video_snapshot_by_date(
     bvid: str = Query(),
     start_date: str = Query("2025-10-20"),
     end_date: str = Query("2025-10-24"),
