@@ -94,11 +94,18 @@ async def artist_songs(
 async def ranking(
     board: str = Query("vocaloid-daily"),
     part: str = Query("main"),
-    issue: int = Query(1, ge=1),
+    issue: int = Query(1, ge=-1),
     page: int = Query(1, ge=1),
     page_size: int = Query(1, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
+    if (issue == -1):
+        result = await session.execute(
+            select(func.max(Ranking.issue))
+            .where(Ranking.board == board, Ranking.part == part)
+        )
+        issue = int(result.scalar_one())
+    
     prev_issue = issue - 1
     PrevRanking = aliased(Ranking)
     stmt = (
@@ -107,6 +114,8 @@ async def ranking(
         .join(Video, Ranking.bvid == Video.bvid)
         .outerjoin(PrevRanking, and_(
             PrevRanking.song_id == Ranking.song_id,
+            PrevRanking.board == board,
+            PrevRanking.part == part,
             PrevRanking.issue == prev_issue
         ))
         .options(
@@ -146,8 +155,52 @@ async def ranking(
         'total': total
     }
     
+@router.get("/song")
+async def get_song(
+    id: int = Query(),
+    session: AsyncSession = Depends(get_async_session)
+):    
+    stmt = (
+        select(Song)
+        .options(
+            selectinload(Song.producers),
+            selectinload(Song.synthesizers),
+            selectinload(Song.vocalists),
+            selectinload(Song.videos).selectinload(Video.uploader)
+        )
+        .where(Song.id == id)
+    )
+    result = await session.execute(stmt)
+    data = result.scalars().one()
+    return {
+        'status': 'ok',
+        'data': data
+    }
+    
 
-@router.get("/snapshot/by_date")
+@router.get("/song/ranking")
+async def song_ranking(
+    id: str = Query(),
+    board: str = Query("vocaloid-daily"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(1, ge=1),
+    session: AsyncSession = Depends(get_async_session)
+):
+    stmt = (
+        select(Ranking)
+        .distinct(Ranking.issue)
+        .where(and_(
+            Ranking.board == board,
+            Ranking.part == "main",
+            Ranking.song_id == id
+        ))
+        .order_by(
+            Ranking.issue.desc(),
+            Ranking.rank.asc()
+        )
+    )
+
+@router.get("/song/snapshot/by_date")
 async def snapshot(
     bvid: str = Query(),
     start_date: str = Query("2025-10-20"),
@@ -174,3 +227,5 @@ async def snapshot(
         'status': 'ok',
         'data': data
     }
+    
+    
