@@ -1,4 +1,4 @@
-from typing import Dict, Set, Tuple, Type
+from typing import Dict, Set, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, Table
 from ..models import Producer, Synthesizer, Vocalist, Uploader, Song, Video, song_producer, song_synthesizer, song_vocalist
@@ -41,11 +41,11 @@ class Cache:
         result = await session.execute(select(Video.bvid, Video.song_id))
         self.video_map = {r[0]: r[1] for r in result.all()}
 
-    async def load_song_artist_relations(self, session: AsyncSession, rel_tables: Dict[Type, Table]):
+    async def load_song_artist_relations(self, session: AsyncSession, rel_tables: Dict[type, Table]):
         """按需加载歌曲-艺术家关系"""
         for cls, table in rel_tables.items():
             result = await session.execute(select(table.c.song_id, table.c.artist_id))
-            self.song_artist_maps[cls] = set(result.all()) 
+            self.song_artist_maps[cls] = set(result.scalars().all()) 
 
             
     def has_videos(self) -> bool:

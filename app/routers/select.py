@@ -9,12 +9,14 @@ from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, R
 from app.crud.select import get_songs_detail
 from datetime import datetime
 
+from typing import Literal
+
 router = APIRouter(prefix='/select', tags=['select'])
 
 @router.get("/songs", description='不要一次查太多')
 async def songs_detail(
     page: int = Query(1, ge=1),
-    page_size: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
     total_result = await session.execute(select(func.count()).select_from(Song))
@@ -33,7 +35,7 @@ async def artist_songs(
     artist_type: str = Query(),
     artist_id: int = Query(),
     page: int = Query(1, ge=1),
-    page_size: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
     table = TABLE_MAP[artist_type]
@@ -96,7 +98,7 @@ async def ranking(
     part: str = Query("main"),
     issue: int | None = Query(ge=1),
     page: int = Query(1, ge=1),
-    page_size: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
     if (issue == None):
@@ -199,7 +201,7 @@ async def song_ranking(
     id: int = Query(),
     board: str = Query("vocaloid-daily"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
     stmt = (
@@ -236,11 +238,86 @@ async def song_ranking(
         'total': total
     }
 
+@router.get("/song/by_achievement")
+async def song_by_achievement(
+    item: Literal['view', 'favorite', 'coin', 'like'] = Query(...),
+    level: int = Query(1, ge=1, le=4),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
+    session: AsyncSession = Depends(get_async_session)
+):
+    bottom = 10 ** (level + 3)
+    top = 10 ** (level + 4)
+    
+    item_attr = getattr(Snapshot, item)
+    
+    subq = (
+        select(
+            Snapshot.bvid.label("bvid"),
+            func.max(Snapshot.date).label("latest")
+        )
+        .where(
+            getattr(Snapshot, item) >= bottom,
+            getattr(Snapshot, item) < top,
+        )
+        .group_by(Snapshot.bvid)
+        .cte()
+    )
+    
+    stmt = (
+        select(Song, Video, Snapshot)
+            .select_from(subq)
+            .join(Video, Video.bvid == subq.c.bvid)
+            .join(Song, Song.id == Video.song_id)
+            .join(Snapshot, and_(
+                subq.c.bvid == Snapshot.bvid,
+                subq.c.latest == Snapshot.date
+            ))
+            .options(
+                selectinload(Song.vocalists),
+                selectinload(Song.producers),
+                selectinload(Song.synthesizers),
+                selectinload(Video.uploader)
+            )
+            .order_by(getattr(Snapshot, item).desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+    )
+    
+    
+    
+    result = await session.execute(stmt)
+
+    resp = []
+    for song, video, snapshot in result.all():
+        resp.append({
+            "song": song,
+            "video": video,
+            "snapshot": snapshot,
+        })
+        
+    totalResult = await session.execute(
+        select(func.count())
+        .where(
+            getattr(Snapshot, item) >= bottom,
+            getattr(Snapshot, item) < top,
+        )
+    )
+    
+    total = totalResult.scalar_one()
+    
+    return {
+        'status': 'ok',
+        'data': resp,
+        'total': total
+    }
+
+
 @router.get("/video/snapshot")
 async def song_snapshot(
     bvid: str = Query(),
     page: int = Query(1, ge=1),
-    page_size: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
     session: AsyncSession = Depends(get_async_session)
 ):
     stmt = (
