@@ -5,10 +5,9 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload, aliased
 
 from app.session import get_async_session
-from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, Ranking, Snapshot, TABLE_MAP, REL_MAP
+from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, Ranking, Snapshot, TABLE_MAP, REL_MAP, song_load_full
 from app.crud.select import get_songs_detail
 from datetime import datetime
-
 from typing import Literal
 
 router = APIRouter(prefix='/select', tags=['select'])
@@ -43,12 +42,7 @@ async def artist_songs(
         rel = REL_MAP[artist_type]
         stmt = (
             select(Song)
-            .options(
-                selectinload(Song.producers),
-                selectinload(Song.synthesizers),
-                selectinload(Song.vocalists),
-                selectinload(Song.videos).selectinload(Video.uploader)
-            )
+            .options(*song_load_full)
             .join(rel, Song.id == rel.c.song_id)
             .where(rel.c.artist_id == artist_id)
             .offset((page - 1) * page_size)
@@ -66,12 +60,7 @@ async def artist_songs(
             select(Song)
             .join(Song.videos)                    # 先 join video
             .where(Video.uploader_id == artist_id)  # 筛选条件
-            .options(
-                selectinload(Song.producers),
-                selectinload(Song.synthesizers),
-                selectinload(Song.vocalists),
-                selectinload(Song.videos).selectinload(Video.uploader)
-            )
+            .options(*song_load_full)
             .where()
         )
         total_result = await session.execute(
@@ -180,12 +169,7 @@ async def get_song(
 ):    
     stmt = (
         select(Song)
-        .options(
-            selectinload(Song.producers),
-            selectinload(Song.synthesizers),
-            selectinload(Song.vocalists),
-            selectinload(Song.videos).selectinload(Video.uploader)
-        )
+        .options(*song_load_full)
         .where(Song.id == id)
     )
     result = await session.execute(stmt)

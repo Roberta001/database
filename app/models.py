@@ -1,6 +1,6 @@
 from sqlalchemy import Column, ForeignKey, String, Date, SmallInteger, Integer, DateTime, Text, UniqueConstraint, Table, MetaData, PrimaryKeyConstraint, Index, and_
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase, foreign
+from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase, selectinload 
 from datetime import datetime
 from datetime import date as datetype
 from typing import List
@@ -193,3 +193,9 @@ REL_MAP = {
     'vocalist': song_vocalist,
 }
 
+song_load_full = [
+    selectinload(Song.videos).selectinload(Video.uploader),
+    selectinload(Song.producers),
+    selectinload(Song.synthesizers),
+    selectinload(Song.vocalists)
+]

@@ -47,3 +47,4 @@ async def get_songs_detail(
     result = await session.execute(stmt)
     data = result.scalars().all()
     return data
+
