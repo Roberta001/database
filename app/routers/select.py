@@ -296,6 +296,92 @@ async def song_by_achievement(
         'total': total
     }
 
+@router.get("/song/by_artist")
+async def song_by_artist(
+    type: Literal['vocalist', 'producer', 'synthesizer', 'uploader'] = Query(...),
+    id: int = Query(),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1),
+    session: AsyncSession = Depends(get_async_session)
+):
+    if type == 'uploader':
+        rel = Uploader
+        stmt = (
+            select(Song)
+            .select_from(Video)
+            .join(Song, Song.id == Video.song_id)
+            .where(Video.uploader_id == id)
+            .options(*song_load_full)
+            .offset((page-1) * page_size)
+            .limit(page_size)
+        )
+        result = await session.execute(stmt)
+        data = result.scalars().all()
+        
+        stmt = (
+            select(func.count())
+            .select_from(Video)
+            .join(Song, Song.id == Video.song_id)
+            .where(Video.uploader_id == id)
+        )
+        result = await session.execute(stmt)
+        total = result.scalar_one()
+        
+        return {
+            'status': 'ok',
+            'data': data,
+            'total': total
+        }
+
+    else:
+        rel = REL_MAP[type]
+        stmt = (
+            select(rel)
+            .where(rel.c.artist_id == id)
+            .offset((page-1) * page_size)
+            .limit(page_size)
+        )
+        songs = await session.execute(stmt) 
+        song_ids = [song.song_id for song in songs]
+        
+        stmt = (
+            select(func.count())
+            .select_from(rel)
+            .where(rel.c.artist_id == id)
+        )
+        result = await session.execute(stmt)
+        total = result.scalar_one()
+        
+        stmt = (
+            select(Song)
+            .where(Song.id.in_(song_ids))
+            .options(*song_load_full)
+        )
+        songs = await session.execute(stmt)
+        return {
+            'status': 'ok',
+            'data': songs.scalars().all(),
+            'total': total
+        }
+    
+@router.get("/artist")
+async def get_artist(
+    type: Literal['vocalist', 'producer', 'synthesizer', 'uploader'] = Query(...),
+    id: int = Query(),
+    session: AsyncSession = Depends(get_async_session)
+):
+    table = TABLE_MAP[type]
+    stmt = (
+        select(table)
+        .where(table.id == id)
+    )
+    result = await session.execute(stmt)
+    data = result.scalars().one()
+    return {
+        'status': 'ok',
+        'data': data
+    }
+    
 
 @router.get("/video/snapshot")
 async def song_snapshot(

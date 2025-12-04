@@ -6,9 +6,9 @@ from typing import Literal
 
 router = APIRouter(prefix='/search', tags=['search'])
 
-@router.get("/:type")
+@router.get("/{type}")
 async def search(
-    type: Literal['song', 'video', 'producer', 'vocalist', 'synthesizer', 'uploader'] = Query(...),
+    type: Literal['song', 'video', 'producer', 'vocalist', 'synthesizer', 'uploader'],
     keyword: str = Query(...),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1),
