@@ -3,11 +3,11 @@ from typing import Iterable
 
 @dataclass
 class SearchMatch:
-    word: str
+    text: str
     accuracy: int
 
 
-def accurate_search(keyword: str, names: Iterable[str]) -> list[SearchMatch]:
+def accurate_search(keyword: str, names: Iterable[str]) -> tuple[SearchMatch, ...]:
     words = list(filter(lambda x: keyword in x, names))
-    return list(map(lambda x: SearchMatch(x, 1), words))
+    return tuple(map(lambda x: SearchMatch(x, 1), words))
 

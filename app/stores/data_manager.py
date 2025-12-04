@@ -1,76 +1,51 @@
-# data_manager.py
-from typing import Any, Callable, Awaitable, Iterable
-from asyncio import Lock, sleep, Task, create_task
-from app.stores.name_store import AsyncNameStore
+from typing import Callable, Awaitable
+import asyncio
 
-class AsyncDataManager:
-    """
-    - 从数据库异步加载
-    - 内部维护 AsyncNameStore
-    - 提供搜索与更新功能
-    - 为 FastAPI 提供统一的数据访问层
-    """
+class AsyncDataManager[T]:
+    def __init__(self, loader: Callable[[], Awaitable[T]]):
+        self._loader = loader
+        self._data: T | None = None
+        self._lock = asyncio.Lock()
 
-    def __init__(self, db_loader: Callable[[], Awaitable[Iterable[str]]]):
-        self._db_loader = db_loader
-        self.store = AsyncNameStore()
-        self._lock = Lock()
-
-    async def load_from_db(self):
+    async def load(self):
         async with self._lock:
-            names = await self._db_loader()
-            await self.store.load(names)
+            self._data = await self._loader()
 
-    async def reload(self):
-        async with self._lock:
-            names = await self._db_loader()
-            await self.store.load(names)
-
-    async def add_name(self, name: str):
-        await self.store.add(name)
-
-    async def remove_name(self, name: str):
-        await self.store.remove(name)
-
-    async def all_names(self) -> set[str]:
-        return await self.store.all()
-
-    async def search(self, keyword: str, matcher: Callable[[str, str], Any]):
-        names = await self.store.all()
-        results = []
-        for n in names:
-            score = matcher(n, keyword)
-            if score is not None:
-                results.append((n, score))
-                results.sort(key=lambda x: x[1], reverse=True)
-                return results
+    async def get(self) -> T:
+        if self._data is None:
+            await self.load()
+        return self._data  # type: ignore
 
 
-
-# --- 异步自动刷新版本 ---
-class AsyncAutoRefreshDataManager(AsyncDataManager):
-    def __init__(self, db_loader: Callable[[], Awaitable[Iterable[str]]], interval_seconds: int = 300):
+class AsyncAutoRefreshDataManager[T](AsyncDataManager[T]):
+    def __init__(self, db_loader: Callable[[], Awaitable[T]], interval_seconds: int = 300):
         super().__init__(db_loader)
         self._interval = interval_seconds
-        self._refresh_task: Task | None = None
-        self._stop = False
+        self._refresh_task: asyncio.Task | None = None
+        self._stop_event = asyncio.Event()
 
     async def _auto_refresh_loop(self):
-        while not self._stop:
+        while not self._stop_event.is_set():
             try:
-                await self.reload()
+                await self.load()
             except Exception as e:
                 print("[AsyncAutoRefresh] Error during reload:", e)
-            await sleep(self._interval)
 
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self._interval)
+            except asyncio.TimeoutError:
+                continue
 
     async def start_auto_refresh(self):
         if self._refresh_task is None:
-            self._stop = False
-            self._refresh_task = create_task(self._auto_refresh_loop())
+            self._stop_event.clear()
+            self._refresh_task = asyncio.create_task(self._auto_refresh_loop())
 
     async def stop_auto_refresh(self):
-        self._stop = True
+        self._stop_event.set()
         if self._refresh_task:
-            await self._refresh_task
+            try:
+                await self._refresh_task
+            except Exception:
+                pass
         self._refresh_task = None

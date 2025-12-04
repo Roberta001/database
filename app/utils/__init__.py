@@ -38,3 +38,10 @@ def read_excel(filepath: str) -> pd.DataFrame:
     df['title'] = df['title'].fillna('')      # 如果标题为空，那就空字符串
     
     return df
+
+    
+def modify_text(name: str):
+    """
+    把文本转换为便于搜索的格式
+    """
+    return name.lower()

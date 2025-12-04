@@ -5,7 +5,7 @@ import asyncio
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -17,7 +17,7 @@ from app.routers.test import router as test_router
 from app.routers.edit import router as edit_router
 from app.routers.output import router as output_router
 from app.routers.search import router as search_router
-from app.stores.names_store import async_names_store
+from app.stores import data_store
 
 from app.utils.task import task_manager, cleanup_worker
 app = FastAPI(root_path="/v2")
@@ -44,8 +44,12 @@ app.include_router(edit_router)
 app.include_router(output_router)
 app.include_router(search_router)
 
-# 设置自动任务
-@app.on_event("startup")
-async def startup():
+# 设置生命周期事件
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     asyncio.create_task(cleanup_worker(task_manager))
+    yield
+    await data_store.shutdown()
+
     
