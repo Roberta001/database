@@ -9,6 +9,21 @@ from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, R
 
 from datetime import datetime
 
+async def get_names(
+    type: str,
+    session: AsyncSession
+):
+    table = TABLE_MAP[type]
+    if not table:
+        raise ValueError("Invalid type")
+    elif table == Video:
+        result = await session.execute(select(Video.title))
+    else:
+        result = await session.execute(select(table.name))
+
+    names = result.scalars().all()
+    return names
+
 
 async def get_songs_detail(
     page: int = Query(1, ge=1),

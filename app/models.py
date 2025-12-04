@@ -179,6 +179,8 @@ class Ranking(Base):
     
 
 TABLE_MAP = {
+    'song': Song,
+    'video': Video,
     'producer': Producer,
     'synthesizer': Synthesizer,
     'vocalist': Vocalist,

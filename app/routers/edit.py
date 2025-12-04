@@ -8,7 +8,7 @@ from app.crud.edit import check_artist
 from app.schemas.edit import ConfirmRequest
 from app.utils.task import task_manager
 
-router = APIRouter(prefix='/edit')
+router = APIRouter(prefix='/edit', tags=['edit'])
 
 @router.post("/artist/check")
 async def edit_artist(

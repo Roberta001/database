@@ -10,15 +10,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from app.config import settings
-from app.routers.producer import router as producer_router
-from app.routers.song import router as song_router
 from app.routers.update import router as update_router
 from app.routers.select import router as select_router
 from app.routers.upload import router as upload_router
 from app.routers.test import router as test_router
 from app.routers.edit import router as edit_router
 from app.routers.output import router as output_router
-
+from app.routers.search import router as search_router
+from app.stores.names_store import async_names_store
 
 from app.utils.task import task_manager, cleanup_worker
 app = FastAPI(root_path="/v2")
@@ -43,8 +42,10 @@ app.include_router(upload_router)
 app.include_router(test_router)
 app.include_router(edit_router)
 app.include_router(output_router)
+app.include_router(search_router)
 
 # 设置自动任务
 @app.on_event("startup")
-async def start_cleanup():
+async def startup():
     asyncio.create_task(cleanup_worker(task_manager))
+    
