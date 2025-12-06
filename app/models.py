@@ -83,6 +83,7 @@ class Song(Base):
     __tablename__ = "song"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
+    vocadb_id: Mapped[int] = mapped_column(Integer, nullable=True)
     type: Mapped[str] = mapped_column(String(4))
 
     producers: Mapped[List["Producer"]] = relationship(

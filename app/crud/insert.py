@@ -145,6 +145,8 @@ async def insert_videos(
         cache = Cache()
     """
     插入视频。冲突更新。
+    
+    如果歌曲不存在就不插入。
     """
 
     await cache.ensure_loaded(session, ['video_map', 'song_map', 'artist_maps'])
@@ -157,10 +159,10 @@ async def insert_videos(
                 uploader_id=lambda df: df['uploader'].map(cache.artist_maps[Uploader])
             )
             .rename(columns={'image_url': 'thumbnail'})
-            .loc[df.song_id.notna()]
         )
+        missing_video_df = missing_video_df.loc[missing_video_df['song_id'].notna()]
         if 'duration' not in missing_video_df.columns:
-            missing_video_df['duration'] = None,
+            missing_video_df['duration'] = None
         if 'page' not in missing_video_df.columns:
             missing_video_df['page'] = None
 
@@ -185,7 +187,10 @@ async def insert_videos(
                 ]}
             )
             await session.execute(stmt)
-            cache.video_map.update({v['bvid']: v['song_id'] for v in missing_video_df.to_dict('records')})
+            for v in missing_video_df.to_dict('records'):
+                if v['song_id'] is not None:
+                    cache.video_map[v['bvid']] = v['song_id']
+
         
 # =============   直接被调用的操作  =========
         
@@ -235,14 +240,16 @@ async def execute_import_snapshots(
         batched_df = df.iloc[start:end]
         await insert_videos(session, batched_df, cache)
 
+        batched_df = batched_df[batched_df['bvid'].isin(cache.video_map.keys())]
+        if not batched_df.empty:
         # -------- 插入数据记录 ---------
-        snapshots = batched_df[["bvid", "date", "view", "favorite", "coin", "like"]].to_dict(orient="records")
-        stmt = pg_insert(Snapshot).values(snapshots).on_conflict_do_update(
-            index_elements=['bvid', 'date'],
-            set_={field: pg_insert(Snapshot).excluded[field] for field in ['view', 'favorite', 'coin', 'like']}
-        )
-        await session.execute(stmt)
-        await session.flush()
+            snapshots = batched_df[["bvid", "date", "view", "favorite", "coin", "like"]].to_dict(orient="records")
+            stmt = pg_insert(Snapshot).values(snapshots).on_conflict_do_update(
+                index_elements=['bvid', 'date'],
+                set_={field: pg_insert(Snapshot).excluded[field] for field in ['view', 'favorite', 'coin', 'like']}
+            )
+            await session.execute(stmt)
+            await session.flush()
     
 async def execute_import_rankings(
     session: AsyncSession, 
@@ -307,6 +314,7 @@ async def execute_import_rankings(
                 )[['board', 'part', 'issue', 'rank','bvid','point','view','favorite','coin','like','view_rank','favorite_rank','coin_rank','like_rank']]
                 insert_df['song_id'] = insert_df['bvid'].map(cache.video_map)
 
+            insert_df = insert_df.dropna(subset=['song_id'])
             insert_df = insert_df.replace({pd.NA: None})
             records = insert_df.to_dict(orient='records')
             
