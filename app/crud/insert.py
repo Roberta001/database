@@ -71,7 +71,8 @@ async def insert_songs(session: AsyncSession, df, cache: Cache | None = None):
     for row in df.to_dict(orient='records'):
         name = row['name']
         song_type = row['type'] if not pd.isna(row['type']) else None
-        song_records.append((name, song_type))
+        if not pd.isna(name):
+            song_records.append((name, song_type))
         
     song_records = list(set(song_records))
     new_songs = [r for r in song_records if r[0] not in cache.song_map.keys()]
