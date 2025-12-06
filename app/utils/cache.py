@@ -45,7 +45,7 @@ class Cache:
         """按需加载歌曲-艺术家关系"""
         for cls, table in rel_tables.items():
             result = await session.execute(select(table.c.song_id, table.c.artist_id))
-            self.song_artist_maps[cls] = set(result.scalars().all()) 
+            self.song_artist_maps[cls] = set(result.tuples().all()) 
 
             
     def has_videos(self) -> bool:
