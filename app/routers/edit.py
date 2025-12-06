@@ -24,7 +24,7 @@ async def confirm_edit_artist(
     request: ConfirmRequest = Body(),
     session: AsyncSession = Depends(get_async_session)
 ):
-    token = request.confirm_token
+    token = request.task_id
     
     task = task_manager.get_task(token)
     
