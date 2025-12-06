@@ -83,8 +83,8 @@ async def batch_import_snapshots(
             print(f'正在处理：{date.strftime("%Y-%m-%d")}')
             await execute_import_snapshots(session, date.strftime("%Y-%m-%d"), False, cache)
             date += timedelta(1)
+            await session.commit()
 
-        await session.commit()
     except IntegrityError as e:
 
         await session.rollback()
@@ -151,8 +151,8 @@ async def batch_import_ranking(
         for issue in range(start_issue, end_issue+1):
             print(f'正在处理：{issue}期')
             await execute_import_rankings(session, board, part, issue, False, cache)
+            await session.commit()
 
-        await session.commit()
     except IntegrityError as e:
 
         await session.rollback()
