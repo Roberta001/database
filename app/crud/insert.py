@@ -250,6 +250,7 @@ async def execute_import_snapshots(
             )
             await session.execute(stmt)
             await session.flush()
+            await session.commit()
     
 async def execute_import_rankings(
     session: AsyncSession, 
