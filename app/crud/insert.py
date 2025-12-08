@@ -1,24 +1,111 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, and_
+from sqlalchemy import select, delete, and_, update, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, song_producer, song_synthesizer, song_vocalist, Snapshot, Ranking
 from app.utils.misc import make_duration_int
 
-from ..utils import validate_excel, read_excel
+from ..utils import validate_excel, read_excel, ensure_columns, normalize_nullable_int_columns, normalize_nullable_str_columns
 from ..utils.filename import generate_board_file_path
 from ..utils.cache import Cache
 
 import pandas as pd
 from datetime import datetime, timedelta
 
+from collections import namedtuple
+
 
 
 BATCH_SIZE = 200
 
 # =================  比较小的操作，不对外公开  ====================
+
+async def resolve_changed_names(
+    session: AsyncSession, 
+    df: pd.DataFrame,
+    cache: Cache | None = None
+):
+    if not cache:
+        cache = Cache()
+    await cache.ensure_loaded(session, ['song_map', 'video_map'])
+    
+
+    song_map = cache.song_map        # {name -> song_id}
+    video_map = cache.video_map      # {bvid -> song_id}
+
+    new_song_names = []             # 需要新建的Song名称
+    video_updates = []              # (bvid, new_song_id)
+
+    # === 第一步：收集所有需要创建的新 name ===
+    for _, row in df.iterrows():
+        bvid = row["bvid"]
+        new_name = row["name"]
+
+        if bvid not in video_map:
+            continue
+
+        old_song_id = video_map[bvid]
+
+        # 如果新名字已经有关联，则看看是否等于 old_song_id
+        if new_name in song_map:
+            if song_map[new_name] != old_song_id:
+                # Video 的 song_id 要改到新的 song_id
+                video_updates.append((bvid, song_map[new_name]))
+            continue
+
+        # 新名字不存在 → 后续要创建一个新的 Song
+        new_song_names.append(new_name)
+
+    # 去重
+    new_song_names = list(set(new_song_names))
+
+    # === 第二步：批量插入新的 Song ===
+    created_name_to_id = {}
+    if new_song_names:
+        insert_data = [{"name": name} for name in new_song_names]
+        stmt = pg_insert(Song).returning(Song.id, Song.name)
+        rows = (await session.execute(stmt, insert_data)).fetchall()
+
+        for sid, name in rows:
+            created_name_to_id[name] = sid
+            cache.song_map[name] = sid  # 更新缓存
+
+    # === 第三步：对所有 Video 更新 song_id ===
+    # 再执行 df 遍历一次，找出因新 Song 创建而需要更新的项
+    for _, row in df.iterrows():
+        bvid = row["bvid"]
+        new_name = row["name"]
+
+        if bvid not in video_map:
+            continue
+
+        # 如果 name 属于新创建的 Song，则更新到新 id
+        if new_name in created_name_to_id:
+            new_id = created_name_to_id[new_name]
+            video_updates.append((bvid, new_id))
+            continue
+
+    # 执行 update
+    for bvid, new_song_id in video_updates:
+        stmt = (
+            update(Video)
+            .where(Video.bvid == bvid)
+            .values(song_id=new_song_id)
+        )
+        await session.execute(stmt)
+
+        # 缓存同步更新
+        video_map[bvid] = new_song_id
+
+    await session.commit()
+
+    return {
+        "created_songs": len(new_song_names),
+        "updated_videos": len(video_updates),
+    }
+
 
 async def insert_artists(
     session: AsyncSession, 
@@ -66,30 +153,37 @@ async def insert_artists(
 async def insert_songs(session: AsyncSession, df, cache: Cache | None = None):
     if not cache:
         cache = Cache()
+    ensure_columns(df, ['display_name', 'image_url'])
     await cache.ensure_loaded(session, ['song_map'])
-    song_records = []
+    # (name, type, display_name)
+    SongRecord = namedtuple('SongRecord', ['name', 'type', 'display_name'])
+    song_records: list[SongRecord] = []
     for row in df.to_dict(orient='records'):
         name = row['name']
         song_type = row['type'] if not pd.isna(row['type']) else None
+        display_name = row['display_name']
         if not pd.isna(name):
-            song_records.append((name, song_type))
+            song_records.append(SongRecord(name, song_type, display_name))
         
     song_records = list(set(song_records))
-    new_songs = [r for r in song_records if r[0] not in cache.song_map.keys()]
-    
-    if new_songs:
+
+
+    if song_records:
         excluded = pg_insert(Song).excluded
-        stmt = pg_insert(Song).values([{'name': n, 'type': t} for n, t in new_songs]).on_conflict_do_update(
+        song_table_columns = ['name', 'type', 'display_name']
+        stmt = pg_insert(Song).values([
+            {k: v for k, v in s._asdict().items() if k in song_table_columns}
+            for s in song_records
+            ]).on_conflict_do_update(
             index_elements=['name'],
-            set_={  'type': excluded['type'] }
+            set_={ 'type': excluded['type'], 'display_name': excluded['display_name'] }
         ).returning(Song.id, Song.name)
         result = await session.execute(stmt)
         await session.flush()
         rows = result.all()
         
         cache.song_map.update({r[1]: r[0] for r in rows})
-            
-    return new_songs
+
 
 async def insert_relations(
     session: AsyncSession,
@@ -107,7 +201,7 @@ async def insert_relations(
     
     # 非严格模式下再检查一遍不需要插入的内容
     if not strict:
-        new_song_df = new_song_df.loc[new_song_df['synthesizer'].notna() & new_song_df['author'].notna() & new_song_df['vocal'].notna()]
+        new_song_df = new_song_df.loc[new_song_df['synthesizer'].notna() & new_song_df['author'].notna() & new_song_df['vocal'].notna()].copy()
     
     for cls, table, field in (
         (Producer, song_producer, 'author'),
@@ -117,6 +211,7 @@ async def insert_relations(
         rel_df = (
             new_song_df[['name', field]]
             .assign( song_id=lambda df: df['name'].map(cache.song_map))
+            .copy()
         )
         
         rel_df[field] = rel_df[field].astype(str).str.split('、')
@@ -126,7 +221,9 @@ async def insert_relations(
         rel_df['artist_id'] = rel_df[field].map(cache.artist_maps[cls])
         rel_df = rel_df[rel_df['artist_id'].notna()]
         
+
         rel_records = set(rel_df[['song_id', 'artist_id']].itertuples(index=False, name=None))
+
         existing_rel_set = set(tuple(x) for x in cache.song_artist_maps[cls])
         new_rel_records = list(rel_records - existing_rel_set)
 
@@ -135,6 +232,54 @@ async def insert_relations(
             stmt = pg_insert(table).values(new_rel_dicts).on_conflict_do_nothing()
             await session.execute(stmt)
             cache.song_artist_maps[cls].update(new_rel_records)
+            
+            
+async def update_relations(
+    session: AsyncSession,
+    df: pd.DataFrame,
+    cache: Cache | None = None
+    ):
+    """
+    更新全部artist关系
+    """
+    if not cache:
+        cache = Cache()
+    await cache.ensure_loaded(session, ['song_map', 'artist_maps'])
+       
+    song_df = df[['name', 'synthesizer', 'author', 'vocal']].copy()
+    
+    for cls, table, field in (
+        (Producer, song_producer, 'author'),
+        (Synthesizer, song_synthesizer, 'synthesizer'),
+        (Vocalist, song_vocalist, 'vocal')
+    ):
+        rel_df = (
+            song_df[['name', field]]
+            .assign( song_id=lambda df: df['name'].map(cache.song_map))
+            .copy()
+        )
+        
+        rel_df = rel_df[rel_df['song_id'].notna()]
+        rel_df = rel_df[rel_df[field].notna()].copy()
+        rel_df[field] = rel_df[field].astype(str).str.split('、')
+        rel_df = rel_df.explode(field)
+        rel_df['artist_id'] = rel_df[field].map(cache.artist_maps[cls])
+        rel_df = rel_df[rel_df['artist_id'].notna()].copy()
+
+        song_ids = rel_df['song_id'].unique().tolist()
+        if song_ids:
+            stmt = delete(table).where(table.c.song_id.in_(song_ids))
+            await session.execute(stmt)
+            
+
+        rel_records = set(map(tuple, rel_df[['song_id', 'artist_id']].to_numpy()))
+
+
+        if rel_records:
+            new_rel_dicts = [{'song_id': t[0], 'artist_id': t[1]} for t in rel_records]
+            stmt = pg_insert(table).values(new_rel_dicts).on_conflict_do_nothing()
+            await session.execute(stmt)
+
 
 async def insert_videos(
     session: AsyncSession, 
@@ -149,73 +294,56 @@ async def insert_videos(
     如果歌曲不存在就不插入。
     """
 
+    normalize_nullable_int_columns(df, ['page', 'copyright'])
+    normalize_nullable_str_columns(df, ['duration', 'title'])
     await cache.ensure_loaded(session, ['video_map', 'song_map', 'artist_maps'])
-        
-    if not df.empty:
-        missing_video_df: pd.DataFrame = (
-            df.loc[~df['bvid'].isin(cache.video_map.keys())]
-            .assign(
-                song_id= lambda df: df['name'].map(cache.song_map),
-                uploader_id=lambda df: df['uploader'].map(cache.artist_maps[Uploader])
-            )
-            .rename(columns={'image_url': 'thumbnail'})
+    df = df.assign(
+        song_id = lambda d: d['name'].map(cache.song_map),
+        uploader_id = lambda d: d['uploader'].map(cache.artist_maps[Uploader])
+    ).rename(columns={'image_url': 'thumbnail'})[['bvid', 'title', 'pubdate', 'duration', 'page', 'song_id', 'uploader_id', 'copyright', 'thumbnail']]
+    
+    # uploader_id 允许为空，先转可空类型
+    df["uploader_id"] = df["uploader_id"].astype("Int64")
+    
+    # duration 特殊转换
+    df["duration"] = df["duration"].apply(make_duration_int)
+    
+    # 转换成 record dict
+    records = df.to_dict(orient="records")
+
+    
+
+    # ----------- UPSERT（核心）-----------
+    excluded = pg_insert(Video).excluded
+    stmt = (
+        pg_insert(Video)
+        .values(records)
+        .on_conflict_do_update(
+            index_elements=["bvid"],
+            set_={
+                field: excluded[field] for field in [
+                    "title",
+                    "pubdate",
+                    "uploader_id",
+                    "song_id",
+                    "copyright",
+                    "thumbnail",
+                    "duration",
+                    "page"
+                ]
+            }
         )
-        missing_video_df = missing_video_df.loc[missing_video_df['song_id'].notna()]
-        if 'duration' not in missing_video_df.columns:
-            missing_video_df['duration'] = None
-        if 'page' not in missing_video_df.columns:
-            missing_video_df['page'] = None
+    )
+    await session.execute(stmt)
 
-        
-        missing_video_df = missing_video_df[['bvid', 'title', 'pubdate', 'song_id', 'uploader_id', 'copyright', 'thumbnail', 'page', 'duration']]
-        
-        # 允许 uploader 为空，只是需要防止出现 NaN
-        missing_video_df["uploader_id"] = missing_video_df["uploader_id"].astype("Int64")
-        # 因为有莫名其妙缺copyright的情况，可能是以前，唉随便了
-        missing_video_df["copyright"] = missing_video_df["copyright"].astype("Int64")
-        missing_video_df['page'] = missing_video_df['page'].astype("Int64")
-        missing_video_df['duration'] = missing_video_df['duration'].apply(make_duration_int)
-        missing_video_df = missing_video_df.replace({pd.NA: None})
-
-        if (len(missing_video_df) > 0):
-            missing_video_records = missing_video_df.to_dict(orient='records')
-            excluded = pg_insert(Video).excluded
-            stmt = pg_insert(Video).values(missing_video_records).on_conflict_do_update(
-                index_elements=['bvid'],
-                set_={field: excluded[field] for field in [
-                    'title', 'pubdate', 'uploader_id', 'song_id', 'copyright', 'thumbnail', 'duration', 'page'
-                ]}
-            )
-            await session.execute(stmt)
-            for v in missing_video_df.to_dict('records'):
-                if v['song_id'] is not None:
-                    cache.video_map[v['bvid']] = v['song_id']
+    # ----------- 更新 cache -----------
+    for row in records:
+        cache.video_map[row["bvid"]] = row["song_id"]
 
         
 # =============   直接被调用的操作  =========
         
-async def execute_import_songs(session: AsyncSession, df: pd.DataFrame, strict: bool,    cache: Cache | None = None ):
-    if not cache:
-        cache = Cache()
-    try:
-        await cache.ensure_loaded(session, ['video_map', 'song_map', 'artist_maps', 'song_artist_maps'])
-        
-        for start in range(0, len(df), BATCH_SIZE):
-            print(start)
-            batch_df = df.iloc[start: start + BATCH_SIZE]
-            
-            await insert_artists(session, batch_df, cache)
-            new_songs = await insert_songs(session, batch_df, cache)
-            if new_songs:
-                await insert_relations(session, batch_df, strict, new_songs, cache)
-            await insert_videos(session, batch_df, cache)
-            
-        
-        await session.commit()
 
-    except IntegrityError as e:
-        await session.rollback()
-        print("插入数据出错:", e)
     
 async def execute_import_snapshots(
     session: AsyncSession,
@@ -227,7 +355,10 @@ async def execute_import_snapshots(
         cache = Cache()
     date_ = datetime.strptime(date, "%Y-%m-%d")
     df = read_excel(f'./data/数据/{date_.strftime("%Y%m%d")}.xlsx').assign(date=date_)
-
+    
+    if strict:
+        validate_excel(df)
+        
     # ---------- 原有记录清空 -------------
     delete_stmt = delete(Snapshot).where(
         Snapshot.date == date_
@@ -237,7 +368,7 @@ async def execute_import_snapshots(
     total = len(df)
     for start in range(0, total, BATCH_SIZE):
         end = start + BATCH_SIZE
-        batched_df = df.iloc[start:end]
+        batched_df = df.iloc[start:end].copy()
         await insert_videos(session, batched_df, cache)
 
         batched_df = batched_df[batched_df['bvid'].isin(cache.video_map.keys())]
@@ -270,6 +401,7 @@ async def execute_import_rankings(
     )
     
     await session.execute(delete_stmt)
+
     
     df: pd.DataFrame = read_excel(
         generate_board_file_path(board, part, issue),
@@ -287,15 +419,20 @@ async def execute_import_rankings(
         total = len(df)
         for start in range(0, total, BATCH_SIZE):
             end = start + BATCH_SIZE
-            batch_df = df.iloc[start: end]
+            batch_df = df.iloc[start: end].copy()
+            print(f"{start} ~ {end}")
             if (part == 'new'):
-                batch_df = batch_df.copy()
                 batch_df['thumbnail'] = None
             if (part != 'new' and board in ['vocaloid-daily', 'vocaloid-weekly']):
+                await resolve_changed_names(session, batch_df, cache)
                 await insert_artists(session, batch_df, cache)
-                new_songs = await insert_songs(session, batch_df, cache)
-                if new_songs:
-                    await insert_relations(session, batch_df, strict, new_songs, cache)
+                if board == 'vocaloid-daily':
+                    new_songs = await insert_songs(session, batch_df, cache)
+                    if new_songs:
+                        await insert_relations(session, batch_df, strict, new_songs, cache)
+                else:
+                    await insert_songs(session, batch_df, cache)
+                    await update_relations(session, batch_df, cache)
                 await insert_videos(session, batch_df, cache)
 
                 insert_df = batch_df.assign(

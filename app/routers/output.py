@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.session import get_async_session
 from app.models import Song
-from app.crud.select import get_songs_detail
+from app.crud.select import get_songs_detail, get_all_included_songs
 from app.utils.misc import make_artist_str
 import pandas as pd
 import os
@@ -28,26 +28,9 @@ router = APIRouter(prefix='/output', tags=['output'])
 async def export_songs(
     session: AsyncSession = Depends(get_async_session)
 ):
-    data = await get_songs_detail(1, 100000, session=session)
+    records = await get_all_included_songs(session=session)
     
-    records = []
-    for song in data:
-        
-        for video in song.videos:
-            
-            records.append({
-                'name': song.name,
-                'title': video.title,
-                'bvid': video.bvid,
-                'image_url': video.thumbnail,
-                'pubdate': video.pubdate.strftime('%Y-%m-%d %H:%M:%S'),
-                'copyright': video.copyright,
-                'uploader': video.uploader.name if video.uploader else None,
-                'vocal': make_artist_str(song.vocalists),
-                'author': make_artist_str(song.producers),
-                'synthesizer': make_artist_str(song.synthesizers),
-                'type': song.type,
-            })
+
             
     # 创建临时文件
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
@@ -59,7 +42,7 @@ async def export_songs(
     # 返回文件响应，提供下载
     return FileResponse(
         path=temp_file.name,
-        filename="songs.xlsx",
+        filename="收录曲目.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=songs.xlsx"}
     )

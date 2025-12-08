@@ -83,7 +83,7 @@ class Song(Base):
     __tablename__ = "song"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
-    display_name: Mapped[str] = mapped_column(Text)
+    display_name: Mapped[str] = mapped_column(Text, nullable=True)
     vocadb_id: Mapped[int] = mapped_column(Integer, nullable=True)
     type: Mapped[str] = mapped_column(String(4))
 
@@ -127,6 +127,8 @@ class Video(Base):
     song: Mapped["Song"] = relationship("Song", back_populates="videos")
     snapshots: Mapped[List["Snapshot"]] = relationship("Snapshot", back_populates="video")
     rankings: Mapped[List["Ranking"]] = relationship("Ranking", back_populates="video")
+
+    streak: Mapped[int] = mapped_column(SmallInteger, nullable=True)
 
 class Snapshot(Base):
     """

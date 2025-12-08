@@ -11,7 +11,7 @@ from app.models import Song, Producer
 from ..utils import validate_excel, read_excel
 from ..utils.filename import generate_board_file_path
 from ..utils.cache import Cache
-from ..crud.insert import execute_import_rankings, execute_import_snapshots, execute_import_songs
+from ..crud.insert import execute_import_rankings, execute_import_snapshots
 
 import pandas as pd
 from datetime import datetime, timedelta
@@ -40,12 +40,6 @@ async def test_insert(session: AsyncSession = Depends(get_async_session)):
     # 4️⃣ 提交事务
     await session.commit()
     return {"status": "ok", "song_id": song_id, "producer_ids": producer_ids}
-
-
-@router.get('/songs')
-async def import_songs(session: AsyncSession = Depends(get_async_session)):
-    df = read_excel('./收录曲目.xlsx')
-    await execute_import_songs(session, df, False)        
 
 @router.get('/snapshots')
 async def import_snapshots(

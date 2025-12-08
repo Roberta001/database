@@ -28,3 +28,5 @@ def make_artist_str(artists) -> str | None:
     if artists is None:
         return None
     return '、'.join(map(lambda x: x.name, artists))
+
+
