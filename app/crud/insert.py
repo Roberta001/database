@@ -166,8 +166,6 @@ async def insert_songs(session: AsyncSession, df, cache: Cache | None = None):
             song_records.append(SongRecord(name, song_type, display_name))
         
     song_records = list(set(song_records))
-
-
     if song_records:
         excluded = pg_insert(Song).excluded
         song_table_columns = ['name', 'type', 'display_name']
@@ -183,6 +181,7 @@ async def insert_songs(session: AsyncSession, df, cache: Cache | None = None):
         rows = result.all()
         
         cache.song_map.update({r[1]: r[0] for r in rows})
+    
 
 
 async def insert_relations(
@@ -292,15 +291,28 @@ async def insert_videos(
     插入视频。冲突更新。
     
     如果歌曲不存在就不插入。
+    
+    如果数据里面没有image_url，不会更新。
     """
-
+    
+    has_thumbnail = 'image_url' in df.columns
+    use_cols = ['bvid', 'title', 'pubdate', 'duration', 'page', 'song_id', 'uploader_id', 'copyright']
+    update_cols = ['title', 'pubdate', 'uploader_id', 'duration', 'page', 'copyright', 'thumbnail']
+    
     normalize_nullable_int_columns(df, ['page', 'copyright'])
     normalize_nullable_str_columns(df, ['duration', 'title'])
     await cache.ensure_loaded(session, ['video_map', 'song_map', 'artist_maps'])
     df = df.assign(
         song_id = lambda d: d['name'].map(cache.song_map),
         uploader_id = lambda d: d['uploader'].map(cache.artist_maps[Uploader])
-    ).rename(columns={'image_url': 'thumbnail'})[['bvid', 'title', 'pubdate', 'duration', 'page', 'song_id', 'uploader_id', 'copyright', 'thumbnail']]
+    )
+    
+    if has_thumbnail:  
+        df = df.rename(columns={'image_url': 'thumbnail'})
+        use_cols.append('thumbnail')
+        normalize_nullable_str_columns(df, ['thumbnail'])
+    
+    df = df[use_cols]
     
     # uploader_id 允许为空，先转可空类型
     df["uploader_id"] = df["uploader_id"].astype("Int64")
@@ -321,16 +333,7 @@ async def insert_videos(
         .on_conflict_do_update(
             index_elements=["bvid"],
             set_={
-                field: excluded[field] for field in [
-                    "title",
-                    "pubdate",
-                    "uploader_id",
-                    "song_id",
-                    "copyright",
-                    "thumbnail",
-                    "duration",
-                    "page"
-                ]
+                field: excluded[field] for field in update_cols
             }
         )
     )
@@ -421,18 +424,11 @@ async def execute_import_rankings(
             end = start + BATCH_SIZE
             batch_df = df.iloc[start: end].copy()
             print(f"{start} ~ {end}")
-            if (part == 'new'):
-                batch_df['thumbnail'] = None
             if (part != 'new' and board in ['vocaloid-daily', 'vocaloid-weekly']):
                 await resolve_changed_names(session, batch_df, cache)
                 await insert_artists(session, batch_df, cache)
-                if board == 'vocaloid-daily':
-                    new_songs = await insert_songs(session, batch_df, cache)
-                    if new_songs:
-                        await insert_relations(session, batch_df, strict, new_songs, cache)
-                else:
-                    await insert_songs(session, batch_df, cache)
-                    await update_relations(session, batch_df, cache)
+                await insert_songs(session, batch_df, cache)
+                await update_relations(session, batch_df, cache)
                 await insert_videos(session, batch_df, cache)
 
                 insert_df = batch_df.assign(
