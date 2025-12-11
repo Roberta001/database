@@ -1,5 +1,5 @@
-from sqlalchemy import Column, ForeignKey, String, Date, SmallInteger, Integer, DateTime, Text, UniqueConstraint, Table, MetaData, PrimaryKeyConstraint, Index, and_
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
+from sqlalchemy import Column, ForeignKey, String, Date, SmallInteger, Integer, Text, Table, MetaData, PrimaryKeyConstraint, Index, Boolean
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase, selectinload 
 from datetime import datetime
 from datetime import date as datetype
@@ -122,6 +122,7 @@ class Video(Base):
     thumbnail: Mapped[str] = mapped_column(Text, nullable=True)
     duration: Mapped[int] = mapped_column(Integer, nullable=True)
     page: Mapped[int] = mapped_column(SmallInteger, nullable=True)
+    disabled: Mapped[bool] = mapped_column(Boolean, nullable=True)
 
     uploader: Mapped["Uploader"] = relationship("Uploader", back_populates="videos")
     song: Mapped["Song"] = relationship("Song", back_populates="videos")
@@ -129,6 +130,7 @@ class Video(Base):
     rankings: Mapped[List["Ranking"]] = relationship("Ranking", back_populates="video")
 
     streak: Mapped[int] = mapped_column(SmallInteger, nullable=True)
+    streak_date: Mapped[datetype] = mapped_column(Date, nullable=True)
 
 class Snapshot(Base):
     """

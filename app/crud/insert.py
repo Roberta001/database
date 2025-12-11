@@ -6,13 +6,14 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, song_producer, song_synthesizer, song_vocalist, Snapshot, Ranking
 from app.utils.misc import make_duration_int
+from app.crud.update import update_video_streaks
 
 from ..utils import validate_excel, read_excel, ensure_columns, normalize_nullable_int_columns, normalize_nullable_str_columns
 from ..utils.filename import generate_board_file_path
 from ..utils.cache import Cache
 
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from collections import namedtuple
 
@@ -395,6 +396,12 @@ async def execute_import_snapshots(
             await session.flush()
             await session.commit()
     
+    # ------------ 更新 streak ------------
+    await update_video_streaks(session, date_)
+    
+    
+    
+    
 async def execute_import_rankings(
     session: AsyncSession, 
     board: str, 
@@ -464,6 +471,8 @@ async def execute_import_rankings(
             insert_stmt = pg_insert(Ranking).values(records).on_conflict_do_nothing()
             await session.execute(insert_stmt)
             await session.commit()
+
+
     
     except IntegrityError as e:
         await session.rollback()

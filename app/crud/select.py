@@ -79,6 +79,8 @@ async def get_all_included_songs(session: AsyncSession):
             array_agg(distinct(Producer.name)).filter(Producer.name.isnot(None)).label("producers"),
             array_agg(distinct(Synthesizer.name)).filter(Synthesizer.name.isnot(None)).label("synthesizers"),
             array_agg(distinct(Vocalist.name)).filter(Vocalist.name.isnot(None)).label("vocalists"),
+            
+            Video.streak,
         )
         .select_from(Snapshot)
         .join(Video, Snapshot.bvid == Video.bvid)
@@ -106,6 +108,7 @@ async def get_all_included_songs(session: AsyncSession):
             Song.type,
             Song.display_name,
             Uploader.name,
+            Video.streak
         )
         .order_by(text("census_view DESC"))
     )
@@ -117,7 +120,7 @@ async def get_all_included_songs(session: AsyncSession):
         title, bvid, pubdate, copyright,
         thumbnail, song_name, song_type, song_display_name,
         uploader_name, latest_view, census_view,
-        producers, synthesizers, vocalists
+        producers, synthesizers, vocalists, streak,
     ) in rows:
 
         records.append({
@@ -135,6 +138,7 @@ async def get_all_included_songs(session: AsyncSession):
             "vocal": '、'.join(vocalists or []),
             "type": song_type,
             "image_url": thumbnail,
+            "streak": streak,
         })
 
     return records
