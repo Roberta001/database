@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.dialects.postgresql import array_agg
 
@@ -8,6 +8,7 @@ from app.models import Song, song_producer, song_synthesizer, song_vocalist, Pro
 
 from app.utils.misc import make_artist_str
 from app.utils.bilibili_id import bv2av
+from app.utils.date import get_last_census_date
 from datetime import datetime
 
 from abv_py import bv2av
@@ -48,6 +49,7 @@ async def get_all_included_songs(session: AsyncSession):
     # 最新日期
     latest_date_stmt = select(func.max(Snapshot.date))
     latest_date = (await session.execute(latest_date_stmt)).scalar_one()
+    last_census_date = get_last_census_date(latest_date)
 
     # 聚合查询
     stmt = (
@@ -64,7 +66,14 @@ async def get_all_included_songs(session: AsyncSession):
 
             Uploader.name.label("uploader_name"),
 
-            Snapshot.view,
+            # —— ⭐ 分别聚合两个日期的视图 —— #
+            func.max(Snapshot.view)
+                .filter(Snapshot.date == latest_date)
+                .label("latest_view"),
+
+            func.max(Snapshot.view)
+                .filter(Snapshot.date == last_census_date)
+                .label("census_view"),
 
             # 多对多聚合
             array_agg(Producer.name).filter(Producer.name.isnot(None)).label("producers"),
@@ -86,7 +95,7 @@ async def get_all_included_songs(session: AsyncSession):
         .join(song_vocalist, song_vocalist.c.song_id == Song.id, isouter=True)
         .join(Vocalist, song_vocalist.c.artist_id == Vocalist.id, isouter=True)
 
-        .where(Snapshot.date == latest_date)
+        .where(Snapshot.date.in_([latest_date, last_census_date]))
         .group_by(
             Video.title,
             Video.bvid,
@@ -97,9 +106,8 @@ async def get_all_included_songs(session: AsyncSession):
             Song.type,
             Song.display_name,
             Uploader.name,
-            Snapshot.view,
         )
-        .order_by(Snapshot.view.desc())
+        .order_by(text("census_view DESC"))
     )
 
     rows = (await session.execute(stmt)).all()
@@ -108,7 +116,7 @@ async def get_all_included_songs(session: AsyncSession):
     for (
         title, bvid, pubdate, copyright,
         thumbnail, song_name, song_type, song_display_name,
-        uploader_name, view,
+        uploader_name, latest_view, census_view,
         producers, synthesizers, vocalists
     ) in rows:
 
@@ -118,7 +126,7 @@ async def get_all_included_songs(session: AsyncSession):
             "aid": str(bv2av(bvid)),
             "name": song_name,
             "display_name": song_display_name,
-            "view": view,
+            "view": latest_view or census_view,
             "pubdate": pubdate.strftime("%Y-%m-%d %H:%M:%S"),
             "author": '、'.join(producers or []),
             "uploader": uploader_name,

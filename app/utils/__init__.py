@@ -102,3 +102,4 @@ def normalize_nullable_str_columns(df: pd.DataFrame, columns: list):
         df[col] = df[col].replace({pd.NA: None})
 
     return df
+
