@@ -306,10 +306,6 @@ async def song_by_achievement(
             Snapshot.bvid.label("bvid"),
             func.max(Snapshot.date).label("latest")
         )
-        .where(
-            getattr(Snapshot, item) >= bottom,
-            getattr(Snapshot, item) < top,
-        )
         .group_by(Snapshot.bvid)
         .cte()
     )
@@ -321,8 +317,12 @@ async def song_by_achievement(
             .join(Song, Song.id == Video.song_id)
             .join(Snapshot, and_(
                 subq.c.bvid == Snapshot.bvid,
-                subq.c.latest == Snapshot.date
+                subq.c.latest == Snapshot.date,
             ))
+            .where(
+                getattr(Snapshot, item) >= bottom,
+                getattr(Snapshot, item) < top,
+            )
             .options(
                 selectinload(Song.vocalists),
                 selectinload(Song.producers),
