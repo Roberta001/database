@@ -128,16 +128,19 @@ async def insert_artists(
             (Producer, 'author'),
             (Synthesizer, 'synthesizer'),
             (Vocalist, 'vocal'),
-            (Uploader, 'uploader'),
         ):
             if not pd.isna(row[col]):
                 for name in row[col].split('、'):
                     artist_map[table].add(name)
+                    
+        if not pd.isna(row['uploader']):  # 上传者
+            artist_map[Uploader].add(row['uploader'])
 
     for table, names in artist_map.items():
         if not names:
             continue
         new_names = names - cache.artist_maps[table].keys()
+        print(new_names)
 
         if new_names:
             # 构造要插入的数据

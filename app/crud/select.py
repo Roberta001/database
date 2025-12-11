@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, distinct
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.dialects.postgresql import array_agg
 
@@ -76,9 +76,9 @@ async def get_all_included_songs(session: AsyncSession):
                 .label("census_view"),
 
             # 多对多聚合
-            array_agg(Producer.name).filter(Producer.name.isnot(None)).label("producers"),
-            array_agg(Synthesizer.name).filter(Synthesizer.name.isnot(None)).label("synthesizers"),
-            array_agg(Vocalist.name).filter(Vocalist.name.isnot(None)).label("vocalists"),
+            array_agg(distinct(Producer.name)).filter(Producer.name.isnot(None)).label("producers"),
+            array_agg(distinct(Synthesizer.name)).filter(Synthesizer.name.isnot(None)).label("synthesizers"),
+            array_agg(distinct(Vocalist.name)).filter(Vocalist.name.isnot(None)).label("vocalists"),
         )
         .select_from(Snapshot)
         .join(Video, Snapshot.bvid == Video.bvid)
