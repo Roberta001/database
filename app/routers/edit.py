@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, update
 from app.models import TABLE_MAP, REL_MAP, Video
 from app.session import get_async_session
 from app.crud.edit import check_artist

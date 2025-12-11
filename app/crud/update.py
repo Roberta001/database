@@ -1,9 +1,9 @@
 from sqlalchemy import select, func, and_, update, exists
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
 from datetime import date, timedelta
 
-from app.models import Video, Snapshot
-
+from app.models import Video, Snapshot, Producer, Song
 
 MIN_TOTAL_VIEW = 10000
 BASE_THRESHOLD = 100
@@ -112,3 +112,5 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
         video.streak_date = current_date
 
     await session.commit()
+
+

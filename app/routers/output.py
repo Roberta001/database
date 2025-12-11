@@ -6,14 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from app.session import get_async_session
 from app.models import Song
 from app.crud.select import get_songs_detail, get_all_included_songs
 from app.utils.misc import make_artist_str
 import pandas as pd
-import os
 import tempfile
 
 

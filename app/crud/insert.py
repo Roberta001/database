@@ -1,7 +1,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, and_, update, delete, insert
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.postgresql import insert as insert
 from sqlalchemy.exc import IntegrityError
 
 from app.models import Song, Producer, Synthesizer, Vocalist, Uploader, Video, song_producer, song_synthesizer, song_vocalist, Snapshot, Ranking
@@ -62,50 +62,55 @@ async def resolve_changed_names(
     # 去重
     new_song_names = list(set(new_song_names))
 
-    # === 第二步：批量插入新的 Song ===
-    created_name_to_id = {}
-    if new_song_names:
-        insert_data = [{"name": name} for name in new_song_names]
-        stmt = pg_insert(Song).returning(Song.id, Song.name)
-        rows = (await session.execute(stmt, insert_data)).fetchall()
+    try:
+        # === 第二步：批量插入新的 Song ===
+        created_name_to_id = {}
+        if new_song_names:
+            insert_data = [{"name": name} for name in new_song_names]
+            stmt = insert(Song).returning(Song.id, Song.name)
+            rows = (await session.execute(stmt, insert_data)).fetchall()
 
-        for sid, name in rows:
-            created_name_to_id[name] = sid
-            cache.song_map[name] = sid  # 更新缓存
+            for sid, name in rows:
+                created_name_to_id[name] = sid
+                cache.song_map[name] = sid  # 更新缓存
 
-    # === 第三步：对所有 Video 更新 song_id ===
-    # 再执行 df 遍历一次，找出因新 Song 创建而需要更新的项
-    for _, row in df.iterrows():
-        bvid = row["bvid"]
-        new_name = row["name"]
+        # === 第三步：对所有 Video 更新 song_id ===
+        # 再执行 df 遍历一次，找出因新 Song 创建而需要更新的项
+        for _, row in df.iterrows():
+            bvid = row["bvid"]
+            new_name = row["name"]
 
-        if bvid not in video_map:
-            continue
+            if bvid not in video_map:
+                continue
 
-        # 如果 name 属于新创建的 Song，则更新到新 id
-        if new_name in created_name_to_id:
-            new_id = created_name_to_id[new_name]
-            video_updates.append((bvid, new_id))
-            continue
+            # 如果 name 属于新创建的 Song，则更新到新 id
+            if new_name in created_name_to_id:
+                new_id = created_name_to_id[new_name]
+                video_updates.append((bvid, new_id))
+                continue
 
-    # 执行 update
-    for bvid, new_song_id in video_updates:
-        stmt = (
-            update(Video)
-            .where(Video.bvid == bvid)
-            .values(song_id=new_song_id)
-        )
-        await session.execute(stmt)
+        # 执行 update
+        for bvid, new_song_id in video_updates:
+            stmt = (
+                update(Video)
+                .where(Video.bvid == bvid)
+                .values(song_id=new_song_id)
+            )
+            await session.execute(stmt)
 
-        # 缓存同步更新
-        video_map[bvid] = new_song_id
+            # 缓存同步更新
+            video_map[bvid] = new_song_id
 
-    await session.commit()
+        await session.commit()
 
-    return {
-        "created_songs": len(new_song_names),
-        "updated_videos": len(video_updates),
-    }
+        return {
+            "created_songs": len(new_song_names),
+            "updated_videos": len(video_updates),
+        }
+    except IntegrityError as e:
+        await session.rollback()
+        print("插入数据出错:", e)
+        raise e
 
 
 async def insert_artists(
@@ -147,7 +152,7 @@ async def insert_artists(
         if new_names:
             # 构造要插入的数据
             values = [{"name": name} for name in new_names]
-            stmt = pg_insert(table).values(values).on_conflict_do_nothing().returning(table.name, table.id)
+            stmt = insert(table).values(values).on_conflict_do_nothing().returning(table.name, table.id)
             result = await session.execute(stmt)
             records = result.all()
             cache.artist_maps[table].update({r[0]: r[1] for r in records})
@@ -171,9 +176,9 @@ async def insert_songs(session: AsyncSession, df, cache: Cache | None = None):
         
     song_records = list(set(song_records))
     if song_records:
-        excluded = pg_insert(Song).excluded
+        excluded = insert(Song).excluded
         song_table_columns = ['name', 'type']
-        stmt = pg_insert(Song).values([
+        stmt = insert(Song).values([
             {k: v for k, v in s._asdict().items() if k in song_table_columns}
             for s in song_records
             ]).on_conflict_do_update(
@@ -233,7 +238,7 @@ async def insert_relations(
 
         if new_rel_records:
             new_rel_dicts = [{'song_id': t[0], 'artist_id': t[1]} for t in new_rel_records]
-            stmt = pg_insert(table).values(new_rel_dicts).on_conflict_do_nothing()
+            stmt = insert(table).values(new_rel_dicts).on_conflict_do_nothing()
             await session.execute(stmt)
             cache.song_artist_maps[cls].update(new_rel_records)
             
@@ -281,7 +286,7 @@ async def update_relations(
 
         if rel_records:
             new_rel_dicts = [{'song_id': t[0], 'artist_id': t[1]} for t in rel_records]
-            stmt = pg_insert(table).values(new_rel_dicts).on_conflict_do_nothing()
+            stmt = insert(table).values(new_rel_dicts).on_conflict_do_nothing()
             await session.execute(stmt)
 
 
@@ -328,11 +333,12 @@ async def insert_videos(
     # 转换成 record dict
     records = df.to_dict(orient="records")
 
+
     # ----------- UPSERT（核心）-----------
     if update:
-        excluded = pg_insert(Video).excluded
+        excluded = insert(Video).excluded
         stmt = (
-            pg_insert(Video)
+            insert(Video)
             .values(records)
             .on_conflict_do_update(
                 index_elements=["bvid"],
@@ -342,7 +348,7 @@ async def insert_videos(
             )
         )
     else:
-        stmt = pg_insert(Video).values(records).on_conflict_do_nothing(
+        stmt = insert(Video).values(records).on_conflict_do_nothing(
             index_elements=["bvid"]
         )
         
@@ -378,27 +384,31 @@ async def execute_import_snapshots(
     )    
     await session.execute(delete_stmt)
 
-    total = len(df)
-    for start in range(0, total, BATCH_SIZE):
-        end = start + BATCH_SIZE
-        batched_df = df.iloc[start:end].copy()
-        await insert_videos(session, batched_df, False, cache)
+    try:
+        total = len(df)
+        for start in range(0, total, BATCH_SIZE):
+            end = start + BATCH_SIZE
+            batched_df = df.iloc[start:end].copy()
+            await insert_videos(session, batched_df, False, cache)
 
-        batched_df = batched_df[batched_df['bvid'].isin(cache.video_map.keys())]
-        if not batched_df.empty:
-        # -------- 插入数据记录 ---------
-            snapshots = batched_df[["bvid", "date", "view", "favorite", "coin", "like"]].to_dict(orient="records")
-            stmt = pg_insert(Snapshot).values(snapshots).on_conflict_do_update(
-                index_elements=['bvid', 'date'],
-                set_={field: pg_insert(Snapshot).excluded[field] for field in ['view', 'favorite', 'coin', 'like']}
-            )
-            await session.execute(stmt)
-            await session.flush()
-            await session.commit()
-    
-    # ------------ 更新 streak ------------
-    await update_video_streaks(session, date_)
-    
+            batched_df = batched_df[batched_df['bvid'].isin(cache.video_map.keys())]
+            if not batched_df.empty:
+            # -------- 插入数据记录 ---------
+                snapshots = batched_df[["bvid", "date", "view", "favorite", "coin", "like"]].to_dict(orient="records")
+                stmt = insert(Snapshot).values(snapshots).on_conflict_do_update(
+                    index_elements=['bvid', 'date'],
+                    set_={field: insert(Snapshot).excluded[field] for field in ['view', 'favorite', 'coin', 'like']}
+                )
+                await session.execute(stmt)
+                await session.flush()
+                await session.commit()
+        
+        # ------------ 更新 streak ------------
+        await update_video_streaks(session, date_)
+    except IntegrityError as e:
+        await session.rollback()
+        print("插入数据出错:", e)
+        raise e
     
     
     
@@ -468,7 +478,7 @@ async def execute_import_rankings(
             insert_df = insert_df.replace({pd.NA: None})
             records = insert_df.to_dict(orient='records')
             
-            insert_stmt = pg_insert(Ranking).values(records).on_conflict_do_nothing()
+            insert_stmt = insert(Ranking).values(records).on_conflict_do_nothing()
             await session.execute(insert_stmt)
             await session.commit()
 
