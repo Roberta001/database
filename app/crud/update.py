@@ -22,7 +22,6 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
         .join(Snapshot, and_(
             Snapshot.bvid == Video.bvid,
             Snapshot.view < MIN_TOTAL_VIEW,
-            Snapshot.date == current_date
         ))
         .where(
             Video.disabled.is_(False),
