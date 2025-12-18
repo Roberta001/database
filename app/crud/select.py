@@ -183,7 +183,8 @@ async def get_artist_songs(
             .join(Song.videos)                    # 先 join video
             .where(Video.uploader_id == artist_id)  # 筛选条件
             .options(*song_load_full)
-            .where()
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
         total_result = await session.execute(
             select(func.count())
