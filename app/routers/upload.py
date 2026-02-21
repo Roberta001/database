@@ -1,14 +1,18 @@
 # app/routers/upload.py
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, APIRouter
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, APIRouter, Depends
 from fastapi.responses import JSONResponse
 import shutil
 import os
 from datetime import datetime
 from app.utils.filename import extract_file_name, generate_board_file_path, generate_data_file_path, BoardIdentity, DataIdentity
+from app.auth import verify_api_key
 
 UPLOAD_DIR = "/var/www/Vocabili-database/data"
 
-router = APIRouter(prefix='/upload')
+router = APIRouter(
+    prefix='/upload',
+    dependencies=[Depends(verify_api_key)]
+)
 
 @router.post("")
 async def upload_file(file: UploadFile = File(...)):

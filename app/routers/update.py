@@ -15,8 +15,13 @@ from ..crud.insert import execute_import_rankings, execute_import_snapshots
 import pandas as pd
 from datetime import datetime, timedelta
 
+from app.auth import verify_api_key
 
-router = APIRouter(prefix='/update', tags=['update'])
+router = APIRouter(
+    prefix='/update', 
+    tags=['update'],
+    dependencies=[Depends(verify_api_key)]
+)
 
 @router.get('/snapshots')
 async def import_snapshots(

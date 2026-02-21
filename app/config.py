@@ -17,7 +17,8 @@ class Settings:
     SQL_PASSWORD: str = os.getenv("SQL_PASSWORD", "")
     SQL_HOST: str = os.getenv("SQL_HOST", "localhost")
     ALLOW_ORIGINS: list[str] = os.getenv("ALLOW_ORIGINS", "").split(',')
+    API_SECRET_KEY: str = os.getenv("API_SECRET_KEY", "default-secret-key")
 
 settings = Settings()
 
-SECRET = 'SECRET'
+SECRET = os.getenv("SECRET", "SECRET")

@@ -8,8 +8,13 @@ from app.session import get_async_session
 from app.crud.edit import check_artist
 from app.schemas.edit import ConfirmRequest, SongEdit, VideoEdit
 from app.utils.task import task_manager
+from app.auth import verify_api_key
 
-router = APIRouter(prefix='/edit', tags=['edit'])
+router = APIRouter(
+    prefix='/edit', 
+    tags=['edit'],
+    dependencies=[Depends(verify_api_key)]
+)
 
 @router.post("/artist/check")
 async def edit_artist(
