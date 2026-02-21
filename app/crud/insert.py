@@ -1,6 +1,6 @@
-
+# app/crud/insert.py
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, and_, update, delete, insert, values, column, Integer, String
+from sqlalchemy import delete, update, delete, insert, values, column, Integer, String
 from sqlalchemy.dialects.postgresql import insert as insert
 from sqlalchemy.exc import IntegrityError
 
@@ -13,10 +13,9 @@ from ..utils.filename import generate_board_file_path
 from ..utils.cache import Cache
 
 import pandas as pd
-from datetime import datetime, timedelta, date
+from datetime import datetime
 import math
 from collections import namedtuple
-import asyncio
 
 BATCH_SIZE = 100
 
@@ -440,10 +439,10 @@ async def execute_import_snapshots(
             batched_df = batched_df[batched_df['bvid'].isin(cache.video_map.keys())]
             if not batched_df.empty:
             # -------- 插入数据记录 ---------
-                snapshots = batched_df[["bvid", "date", "view", "favorite", "coin", "like"]].to_dict(orient="records")
+                snapshots = batched_df[["bvid", "date", "view", "favorite", "coin", "like", "danmaku", "reply", "share"]].to_dict(orient="records")
                 stmt = insert(Snapshot).values(snapshots).on_conflict_do_update(
                     index_elements=['bvid', 'date'],
-                    set_={field: insert(Snapshot).excluded[field] for field in ['view', 'favorite', 'coin', 'like']}
+                    set_={field: insert(Snapshot).excluded[field] for field in ['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share']}
                 )
                 await session.execute(stmt)
                 await session.flush()
@@ -511,7 +510,7 @@ async def execute_import_rankings(
                     board=board,
                     issue=issue,
                     part=part
-                )[['board', 'part', 'issue', 'rank','bvid','count','point','view','favorite','coin','like','view_rank','favorite_rank','coin_rank','like_rank']]
+                )[['board', 'part', 'issue', 'rank','bvid','count','point','view','favorite','coin','like','danmaku','reply','share','view_rank','favorite_rank','coin_rank','like_rank','danmaku_rank','reply_rank','share_rank']]
                 insert_df['count'] = insert_df['count'].astype("Int64")
                 insert_df['song_id'] = insert_df['bvid'].map(cache.video_map)
             
@@ -521,7 +520,7 @@ async def execute_import_rankings(
                     board=board,
                     issue=issue,
                     part=part
-                )[['board', 'part', 'issue', 'rank','bvid','point','view','favorite','coin','like','view_rank','favorite_rank','coin_rank','like_rank']]
+                )[['board', 'part', 'issue', 'rank','bvid','point','view','favorite','coin','like','danmaku','reply','share','view_rank','favorite_rank','coin_rank','like_rank','danmaku_rank','reply_rank','share_rank']]
                 insert_df['song_id'] = insert_df['bvid'].map(cache.video_map)
 
             insert_df = insert_df.dropna(subset=['song_id'])

@@ -1,3 +1,4 @@
+# app/models.py
 from sqlalchemy import Column, ForeignKey, String, Date, SmallInteger, Integer, Text, Table, MetaData, PrimaryKeyConstraint, Index, Boolean
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase, selectinload 
@@ -144,6 +145,9 @@ class Snapshot(Base):
     favorite: Mapped[int] = mapped_column(Integer)
     coin: Mapped[int] = mapped_column(Integer)
     like: Mapped[int] = mapped_column(Integer)
+    danmaku: Mapped[int] = mapped_column(Integer, nullable=True)
+    reply: Mapped[int] = mapped_column(Integer, nullable=True)
+    share: Mapped[int] = mapped_column(Integer, nullable=True)
     
     video: Mapped["Video"] = relationship("Video", primaryjoin="Video.bvid == foreign(Snapshot.bvid)", back_populates="snapshots")
     
@@ -169,10 +173,16 @@ class Ranking(Base):
     favorite: Mapped[int] = mapped_column(Integer)
     coin: Mapped[int] = mapped_column(Integer)
     like: Mapped[int] = mapped_column(Integer)
+    danmaku: Mapped[int] = mapped_column(Integer, nullable=True)
+    reply: Mapped[int] = mapped_column(Integer, nullable=True)
+    share: Mapped[int] = mapped_column(Integer, nullable=True)
     view_rank: Mapped[int] = mapped_column(Integer)
     favorite_rank: Mapped[int] = mapped_column(Integer)
     coin_rank: Mapped[int] = mapped_column(Integer)
     like_rank: Mapped[int] = mapped_column(Integer)
+    danmaku_rank: Mapped[int] = mapped_column(Integer, nullable=True)
+    reply_rank: Mapped[int] = mapped_column(Integer, nullable=True)
+    share_rank: Mapped[int] = mapped_column(Integer, nullable=True)
 
     song: Mapped["Song"] = relationship("Song", back_populates="rankings")
     video: Mapped["Video"] = relationship("Video", primaryjoin="Ranking.bvid == foreign(Video.bvid)", back_populates="rankings")

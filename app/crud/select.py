@@ -1,3 +1,4 @@
+# app/crud/select.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text, distinct, and_
 from sqlalchemy.orm import selectinload, aliased
@@ -12,7 +13,6 @@ from app.utils.date import get_last_census_date, get_seperate_start_end_issues
 from datetime import datetime
 
 from typing import Literal
-from abv_py import bv2av
 
 
 async def get_names(
@@ -209,7 +209,7 @@ async def get_ranking(
     issue: int | None,
     page: int,
     page_size: int ,
-    order_type: Literal['score','view','favorite','coin','like'] ,
+    order_type: Literal['score','view','favorite','coin','like', 'danmaku', 'reply', 'share'],
     seperate: bool,
     session: AsyncSession 
 ):
@@ -228,7 +228,10 @@ async def get_ranking(
         'view': Ranking.view_rank,
         'favorite': Ranking.favorite_rank,
         'coin': Ranking.coin_rank,
-        'like': Ranking.like_rank
+        'like': Ranking.like_rank,
+        'danmaku': Ranking.danmaku_rank,
+        'reply': Ranking.reply_rank,
+        'share': Ranking.share_rank,
     }
     
     seperate_board_map = {
@@ -464,7 +467,7 @@ async def get_song_ranking(
     }
 
 async def get_song_by_achievement(
-    item: Literal['view', 'favorite', 'coin', 'like'],
+    item: Literal['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share'],
     level: int,
     page: int,
     page_size: int,

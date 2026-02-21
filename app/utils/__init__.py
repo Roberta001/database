@@ -1,3 +1,4 @@
+# app/utils/__init__.py
 import pandas  as pd
 from fastapi import HTTPException
 

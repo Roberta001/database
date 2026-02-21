@@ -1,6 +1,4 @@
-"""
-导出xlsx文件
-"""
+# app/routers/output.py
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse

@@ -1,3 +1,4 @@
+# app/routers/select.py
 from fastapi import APIRouter, Depends, Query
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,7 @@ async def ranking(
     issue: int | None = Query(default=None, ge=1),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1),
-    order_type: Literal['score','view','favorite','coin','like'] = Query(default='score'),
+    order_type: Literal['score','view','favorite','coin','like', 'danmaku', 'reply', 'share'] = Query(default='score'),
     seperate: bool = Query(False),
     session: AsyncSession = Depends(get_async_session)
 ):
@@ -76,7 +77,7 @@ async def song_ranking(
 
 @router.get("/song/by_achievement")
 async def song_by_achievement(
-    item: Literal['view', 'favorite', 'coin', 'like'] = Query(...),
+    item: Literal['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share'] = Query(...),
     level: int = Query(1, ge=1, le=4),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1),

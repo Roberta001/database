@@ -1,3 +1,4 @@
+# app/schemas/user.py
 from fastapi_users import schemas
 from pydantic import BaseModel
 

@@ -13,10 +13,16 @@ create table ranking (
 	favorite int,
 	coin int,
 	"like" int,
+	danmaku int,
+	reply int,
+	share int,
 	view_rank int,
 	favorite_rank int,
 	coin_rank int,
-	like_rank int
+	like_rank int,
+	danmaku_rank int,
+	reply_rank int,
+	share_rank int
 );
 create index idx_ranking_board_part on ranking(board, part);
 create index idx_ranking_issue on ranking(issue);

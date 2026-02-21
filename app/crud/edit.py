@@ -1,17 +1,12 @@
-from fastapi import Depends
-
+# app/crud/edit.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
-
 from app.models import TABLE_MAP, REL_MAP, Video
 from app.utils.task import task_manager
-from app.session import get_async_session
-
 from app.session import engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
-
 
 async def check_artist(
     type: str,

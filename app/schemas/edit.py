@@ -1,3 +1,4 @@
+# app/schemas/edit.py
 from pydantic import BaseModel
 from app.schemas.artist import BasicArtistOut
 from typing import Literal
