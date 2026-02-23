@@ -2,6 +2,7 @@
 from typing import Callable, Awaitable
 import asyncio
 
+
 class AsyncDataManager[T]:
     def __init__(self, loader: Callable[[], Awaitable[T]]):
         self._loader = loader
@@ -19,7 +20,9 @@ class AsyncDataManager[T]:
 
 
 class AsyncAutoRefreshDataManager[T](AsyncDataManager[T]):
-    def __init__(self, db_loader: Callable[[], Awaitable[T]], interval_seconds: int = 300):
+    def __init__(
+        self, db_loader: Callable[[], Awaitable[T]], interval_seconds: int = 300
+    ):
         super().__init__(db_loader)
         self._interval = interval_seconds
         self._refresh_task: asyncio.Task | None = None

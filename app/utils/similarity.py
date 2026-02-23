@@ -8,11 +8,16 @@ import re
 def build_ngrams(text: str, n: int = 2) -> set[str]:
     if len(text) < n:
         return {text} if text else set()
-    return {text[i:i+n] for i in range(len(text) - n + 1)}
+    return {text[i : i + n] for i in range(len(text) - n + 1)}
+
+
+def has_cjk(text: str) -> bool:
+    """检查是否包含中日文字符"""
+    return bool(re.search(r"[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]", text))
 
 
 def is_mainly_cjk(text: str) -> bool:
-    cjk_count = len(re.findall(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', text))
+    cjk_count = len(re.findall(r"[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]", text))
     return cjk_count > len(text) * 0.3
 
 
@@ -26,7 +31,9 @@ def levenshtein_distance(s1: str, s2: str, max_dist: int = 3) -> int:
         curr = [i]
         min_val = i
         for j, c1 in enumerate(s1, 1):
-            curr.append(min(prev[j] + 1, curr[j-1] + 1, prev[j-1] + (0 if c1 == c2 else 1)))
+            curr.append(
+                min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + (0 if c1 == c2 else 1))
+            )
             min_val = min(min_val, curr[-1])
         if min_val > max_dist:
             return max_dist + 1

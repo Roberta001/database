@@ -13,7 +13,7 @@ DATABASE_URL = f"postgresql+asyncpg://{dbuser}:{dbpassword}@{dbhost}:5432/vocabi
 
 # 数据库引擎
 
-engine = create_async_engine( DATABASE_URL)
+engine = create_async_engine(DATABASE_URL)
 
 # 会话工厂
 
@@ -21,7 +21,7 @@ async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 # 数据库会话。
 
+
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
         yield session
-

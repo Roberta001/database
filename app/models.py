@@ -1,34 +1,65 @@
 # app/models.py
-from sqlalchemy import Column, ForeignKey, String, Date, SmallInteger, Integer, Text, Table, MetaData, PrimaryKeyConstraint, Index, Boolean
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    String,
+    Date,
+    SmallInteger,
+    Integer,
+    Text,
+    Table,
+    MetaData,
+    PrimaryKeyConstraint,
+    Index,
+    Boolean,
+)
 from sqlalchemy.dialects.postgresql import TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase, selectinload 
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+    DeclarativeBase,
+    selectinload,
+)
 from datetime import datetime
 from datetime import date as datetype
 from typing import List
 
 metadata = MetaData(schema="public")
+
+
 class Base(DeclarativeBase):
     metadata = metadata
     pass
 
+
 # =============  关系表  ==============
 
 song_producer = Table(
-    "song_producer", Base.metadata,
+    "song_producer",
+    Base.metadata,
     Column("song_id", ForeignKey("song.id"), primary_key=True, autoincrement=False),
-    Column("artist_id", ForeignKey("producer.id"), primary_key=True, autoincrement=False),
+    Column(
+        "artist_id", ForeignKey("producer.id"), primary_key=True, autoincrement=False
+    ),
 )
 
 song_synthesizer = Table(
-    "song_synthesizer", Base.metadata,
+    "song_synthesizer",
+    Base.metadata,
     Column("song_id", ForeignKey("song.id"), primary_key=True, autoincrement=False),
-    Column("artist_id", ForeignKey("synthesizer.id"), primary_key=True, autoincrement=False),
+    Column(
+        "artist_id", ForeignKey("synthesizer.id"), primary_key=True, autoincrement=False
+    ),
 )
 
 song_vocalist = Table(
-    "song_vocalist", Base.metadata,
+    "song_vocalist",
+    Base.metadata,
     Column("song_id", ForeignKey("song.id"), primary_key=True, autoincrement=False),
-    Column("artist_id", ForeignKey("vocalist.id"), primary_key=True, autoincrement=False),
+    Column(
+        "artist_id", ForeignKey("vocalist.id"), primary_key=True, autoincrement=False
+    ),
 )
 
 
@@ -40,47 +71,54 @@ class Artist:
     name: Mapped[str] = mapped_column(Text, unique=True)
     vocadb_id: Mapped[int] = mapped_column(Integer, nullable=True)
 
+
 class Producer(Artist, Base):
     """
     P主
     """
+
     __tablename__ = "producer"
     songs: Mapped[List["Song"]] = relationship(
-        secondary=song_producer,
-        back_populates="producers"
+        secondary=song_producer, back_populates="producers"
     )
+
 
 class Vocalist(Artist, Base):
     """
     歌手
     """
+
     __tablename__ = "vocalist"
     songs: Mapped[List["Song"]] = relationship(
-        secondary=song_vocalist,
-        back_populates="vocalists"
+        secondary=song_vocalist, back_populates="vocalists"
     )
+
 
 class Synthesizer(Artist, Base):
     """
     引擎
     """
+
     __tablename__ = "synthesizer"
     songs: Mapped[List["Song"]] = relationship(
-        secondary=song_synthesizer,
-        back_populates="synthesizers"
+        secondary=song_synthesizer, back_populates="synthesizers"
     )
+
 
 class Uploader(Artist, Base):
     """
     UP主
     """
+
     __tablename__ = "uploader"
     videos: Mapped[List["Video"]] = relationship("Video", back_populates="uploader")
+
 
 class Song(Base):
     """
     歌曲
     """
+
     __tablename__ = "song"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
@@ -89,55 +127,60 @@ class Song(Base):
     type: Mapped[str] = mapped_column(String(4))
 
     producers: Mapped[List["Producer"]] = relationship(
-        secondary=song_producer,
-        back_populates="songs"
+        secondary=song_producer, back_populates="songs"
     )
     synthesizers: Mapped[List["Synthesizer"]] = relationship(
-        secondary=song_synthesizer,
-        back_populates="songs"
+        secondary=song_synthesizer, back_populates="songs"
     )
     vocalists: Mapped[List["Vocalist"]] = relationship(
-        secondary=song_vocalist,
-        back_populates="songs"
+        secondary=song_vocalist, back_populates="songs"
     )
-    videos: Mapped[List["Video"]] = relationship(
-        "Video",
-        back_populates="song"
-    )
-    rankings: Mapped[List["Ranking"]] = relationship(
-        "Ranking", 
-        back_populates="song"
-    )
+    videos: Mapped[List["Video"]] = relationship("Video", back_populates="song")
+    rankings: Mapped[List["Ranking"]] = relationship("Ranking", back_populates="song")
+
 
 class Video(Base):
     """
     视频
     """
+
     __tablename__ = "video"
     bvid: Mapped[str] = mapped_column(String(12), primary_key=True, autoincrement=False)
     title: Mapped[str] = mapped_column(Text)
     pubdate: Mapped[datetime] = mapped_column(TIMESTAMP)
-    uploader_id: Mapped[int] = mapped_column(Integer, ForeignKey('uploader.id'), nullable=True)
-    song_id: Mapped[int] = mapped_column(Integer, ForeignKey('song.id'), nullable=False)
+    uploader_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("uploader.id"), nullable=True
+    )
+    song_id: Mapped[int] = mapped_column(Integer, ForeignKey("song.id"), nullable=False)
     copyright: Mapped[int] = mapped_column(SmallInteger, nullable=True)
     thumbnail: Mapped[str] = mapped_column(Text, nullable=True)
     duration: Mapped[int] = mapped_column(Integer, nullable=True)
     page: Mapped[int] = mapped_column(SmallInteger, nullable=True)
     disabled: Mapped[bool] = mapped_column(Boolean, nullable=True)
 
-    uploader: Mapped["Uploader"] = relationship("Uploader",  back_populates="videos")
+    uploader: Mapped["Uploader"] = relationship("Uploader", back_populates="videos")
     song: Mapped["Song"] = relationship("Song", back_populates="videos")
-    snapshots: Mapped[List["Snapshot"]] = relationship("Snapshot", primaryjoin="Video.bvid == foreign(Snapshot.bvid)", back_populates="video")
-    rankings: Mapped[List["Ranking"]] = relationship("Ranking",  primaryjoin="Ranking.bvid == foreign(Video.bvid)",  back_populates="video")
+    snapshots: Mapped[List["Snapshot"]] = relationship(
+        "Snapshot",
+        primaryjoin="Video.bvid == foreign(Snapshot.bvid)",
+        back_populates="video",
+    )
+    rankings: Mapped[List["Ranking"]] = relationship(
+        "Ranking",
+        primaryjoin="Ranking.bvid == foreign(Video.bvid)",
+        back_populates="video",
+    )
 
     streak: Mapped[int] = mapped_column(SmallInteger, nullable=True)
     streak_date: Mapped[datetype] = mapped_column(Date, nullable=True)
+
 
 class Snapshot(Base):
     """
     数据记录
     """
-    __tablename__ = 'snapshot'
+
+    __tablename__ = "snapshot"
     bvid: Mapped[str] = mapped_column(String, autoincrement=False)
     date: Mapped[datetype] = mapped_column(Date)
 
@@ -148,24 +191,28 @@ class Snapshot(Base):
     danmaku: Mapped[int] = mapped_column(Integer, nullable=True)
     reply: Mapped[int] = mapped_column(Integer, nullable=True)
     share: Mapped[int] = mapped_column(Integer, nullable=True)
-    
-    video: Mapped["Video"] = relationship("Video", primaryjoin="Video.bvid == foreign(Snapshot.bvid)", back_populates="snapshots")
-    
-    __table_args__ = (
-        PrimaryKeyConstraint("bvid", 'date'),
+
+    video: Mapped["Video"] = relationship(
+        "Video",
+        primaryjoin="Video.bvid == foreign(Snapshot.bvid)",
+        back_populates="snapshots",
     )
-    
+
+    __table_args__ = (PrimaryKeyConstraint("bvid", "date"),)
+
+
 class Ranking(Base):
     """
     排名记录
     """
-    __tablename__ = 'ranking'
+
+    __tablename__ = "ranking"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     board: Mapped[str] = mapped_column(String(20))
     part: Mapped[str] = mapped_column(String(20))
     issue: Mapped[str] = mapped_column(SmallInteger, index=True)
     rank: Mapped[int] = mapped_column(Integer, index=True)
-    song_id: Mapped[int] = mapped_column(Integer, ForeignKey('song.id'), index=True)
+    song_id: Mapped[int] = mapped_column(Integer, ForeignKey("song.id"), index=True)
     bvid: Mapped[str] = mapped_column(String(12), index=True)
     count: Mapped[int] = mapped_column(SmallInteger, nullable=True)
     point: Mapped[int] = mapped_column(Integer)
@@ -185,31 +232,33 @@ class Ranking(Base):
     share_rank: Mapped[int] = mapped_column(Integer, nullable=True)
 
     song: Mapped["Song"] = relationship("Song", back_populates="rankings")
-    video: Mapped["Video"] = relationship("Video", primaryjoin="Ranking.bvid == foreign(Video.bvid)", back_populates="rankings")
-    
-    __table_args__ = (
-        Index('idx_ranking_board_part', 'board', 'part'),
+    video: Mapped["Video"] = relationship(
+        "Video",
+        primaryjoin="Ranking.bvid == foreign(Video.bvid)",
+        back_populates="rankings",
     )
-    
+
+    __table_args__ = (Index("idx_ranking_board_part", "board", "part"),)
+
 
 TABLE_MAP = {
-    'song': Song,
-    'video': Video,
-    'producer': Producer,
-    'synthesizer': Synthesizer,
-    'vocalist': Vocalist,
-    'uploader': Uploader
+    "song": Song,
+    "video": Video,
+    "producer": Producer,
+    "synthesizer": Synthesizer,
+    "vocalist": Vocalist,
+    "uploader": Uploader,
 }
 
 REL_MAP = {
-    'producer': song_producer,
-    'synthesizer': song_synthesizer,
-    'vocalist': song_vocalist,
+    "producer": song_producer,
+    "synthesizer": song_synthesizer,
+    "vocalist": song_vocalist,
 }
 
 song_load_full = [
     selectinload(Song.videos).selectinload(Video.uploader),
     selectinload(Song.producers),
     selectinload(Song.synthesizers),
-    selectinload(Song.vocalists)
+    selectinload(Song.vocalists),
 ]

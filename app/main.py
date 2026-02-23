@@ -15,6 +15,7 @@ from app.routers import update, select, upload, test, edit, output, search
 from app.stores import data_store
 
 from app.utils.task import task_manager, cleanup_worker
+
 app = FastAPI(root_path="/v2")
 
 # 全局中间件
@@ -26,9 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/", include_in_schema=False)
 async def root():
     return RedirectResponse(url="/v2/docs")
+
 
 # 挂载子路由
 app.include_router(update.router)
@@ -41,10 +44,9 @@ app.include_router(search.router)
 
 # 设置生命周期事件
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(cleanup_worker(task_manager))
     yield
     await data_store.shutdown()
-
-    

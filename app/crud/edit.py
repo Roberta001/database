@@ -8,12 +8,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
-async def check_artist(
-    type: str,
-    id: int,
-    name: str,
-    session: AsyncSession
-):    
+
+async def check_artist(type: str, id: int, name: str, session: AsyncSession):
     if type not in TABLE_MAP:
         raise ValueError("无效的artist类型")
     table = TABLE_MAP[type]
@@ -21,7 +17,7 @@ async def check_artist(
     artist = result.scalars().first()
     if artist is None:
         raise ValueError("未找到artist")
-    
+
     result = await session.execute(select(table).where(table.name == name))
     existing_artist = result.scalars().first()
     if existing_artist:
@@ -34,20 +30,13 @@ async def check_artist(
         # 改名
         task_id = task_manager.add_task(edit_artist(type, id, name))
 
-    return {
-        "task_id": task_id,
-        "old_artist": artist,
-        "new_artist": existing_artist
-    }
-    
-async def merge_artist(
-    type: str,
-    id: int,
-    name: str
-):
+    return {"task_id": task_id, "old_artist": artist, "new_artist": existing_artist}
+
+
+async def merge_artist(type: str, id: int, name: str):
     table = TABLE_MAP[type]
     async with SessionLocal() as session:
-        
+
         result = await session.execute(select(table).where(table.id == id))
         artist = result.scalars().first()
         result = await session.execute(select(table).where(table.name == name))
@@ -56,16 +45,13 @@ async def merge_artist(
             raise ValueError("未找到id对应的artist")
         if not existing_artist:
             raise ValueError("未找到name对应的artist")
-        if type == 'uploader':
+        if type == "uploader":
             await session.execute(
                 update(Video)
                 .where(Video.uploader_id == artist.id)
                 .values(uploader_id=existing_artist.id)
             )
-            await session.execute(
-                delete(table)
-                .where(table.id == artist.id)
-            )
+            await session.execute(delete(table).where(table.id == artist.id))
         else:
             rel = REL_MAP[type]
             await session.execute(
@@ -73,12 +59,10 @@ async def merge_artist(
                 .where(rel.c.artist_id == artist.id)
                 .values(artist_id=existing_artist.id)
             )
-            await session.execute(
-                delete(table)
-                .where(table.id == artist.id)
-            )
+            await session.execute(delete(table).where(table.id == artist.id))
         await session.commit()
-            
+
+
 async def edit_artist(
     type: str,
     id: int,
@@ -90,11 +74,9 @@ async def edit_artist(
         artist = result.scalars().first()
         if artist is None:
             raise ValueError("未找到artist")
-        
+
         await session.execute(
-            update(table)
-            .where(table.id == artist.id)
-            .values(name=name)
+            update(table).where(table.id == artist.id).values(name=name)
         )
-        
+
         await session.commit()

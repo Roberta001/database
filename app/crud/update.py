@@ -9,6 +9,7 @@ from app.models import Video, Snapshot, Producer, Song
 MIN_TOTAL_VIEW = 10000
 BASE_THRESHOLD = 100
 
+
 async def update_video_streaks(session: AsyncSession, current_date: date):
     """
     更新 Video.streak 字段
@@ -18,31 +19,17 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
     # 0. 所有已毕业视频置0
     # -----------------------------
     graduated = exists().where(
-        and_(
-            Snapshot.bvid == Video.bvid,
-            Snapshot.view >= MIN_TOTAL_VIEW
-        )
+        and_(Snapshot.bvid == Video.bvid, Snapshot.view >= MIN_TOTAL_VIEW)
     )
-    
-    stmt = (
-        update(Video)
-        .where(graduated)
-        .values(streak=0)
-        )
-    
+
+    stmt = update(Video).where(graduated).values(streak=0)
+
     await session.execute(stmt)
-    
-    
+
     # -----------------------------
     # 1. 获取所有需要更新streak的视频
     # -----------------------------
-    stmt = (
-        select(Video)
-        .where(
-            ~graduated,
-            Video.streak_date < current_date
-        )
-    )
+    stmt = select(Video).where(~graduated, Video.streak_date < current_date)
 
     videos = (await session.execute(stmt)).scalars().all()
     if not videos:
@@ -53,11 +40,10 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
     # -----------------------------
 
     latest_snaps = (
-        await session.execute(
-            select(Snapshot)
-            .where(Snapshot.date == current_date)
-        )
-    ).scalars().all()
+        (await session.execute(select(Snapshot).where(Snapshot.date == current_date)))
+        .scalars()
+        .all()
+    )
 
     latest_map = {s.bvid: s for s in latest_snaps}
 
@@ -69,18 +55,16 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
             Snapshot.bvid,
             Snapshot.view,
             Snapshot.date,
-            func.row_number().over(
-                partition_by=Snapshot.bvid,
-                order_by=Snapshot.date.desc()
-            ).label('rn')
-        )
-        .where(Snapshot.date < current_date)
+            func.row_number()
+            .over(partition_by=Snapshot.bvid, order_by=Snapshot.date.desc())
+            .label("rn"),
+        ).where(Snapshot.date < current_date)
     ).subquery()
-    
-    prev_rows = (await session.execute(
-        select(all_prev).where(all_prev.c.rn == 1)
-    )).all()
-            
+
+    prev_rows = (
+        await session.execute(select(all_prev).where(all_prev.c.rn == 1))
+    ).all()
+
     prev_map = {s.bvid: s for s in prev_rows}
 
     # -----------------------------
@@ -100,7 +84,9 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
                 # 没有上次Snapshot，说明新曲，不给streak
                 streak = 0
             else:
-                daily_increase = (latest.view - prev.view) / ((latest.date - prev.date).days or 1)
+                daily_increase = (latest.view - prev.view) / (
+                    (latest.date - prev.date).days or 1
+                )
                 if daily_increase >= BASE_THRESHOLD:  # 涨速 >= 100
                     streak = 0
                 else:
@@ -108,7 +94,7 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
 
         # ==============================================================
         # B. 当天无 Snapshot
-        # ==============================================================        
+        # ==============================================================
         else:
             streak += 1
 
@@ -117,5 +103,3 @@ async def update_video_streaks(session: AsyncSession, current_date: date):
         video.streak_date = current_date
 
     await session.commit()
-
-

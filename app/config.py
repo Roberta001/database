@@ -3,8 +3,9 @@ import os
 from dotenv import load_dotenv
 
 # 判断使用哪个 env 文件
-env_file = '.env'
+env_file = ".env"
 load_dotenv(dotenv_path=env_file)
+
 
 class Settings:
     APP_ENV: str = os.getenv("APP_ENV", "development")
@@ -16,8 +17,9 @@ class Settings:
     SQL_USER: str = os.getenv("SQL_USER", "")
     SQL_PASSWORD: str = os.getenv("SQL_PASSWORD", "")
     SQL_HOST: str = os.getenv("SQL_HOST", "localhost")
-    ALLOW_ORIGINS: list[str] = os.getenv("ALLOW_ORIGINS", "").split(',')
+    ALLOW_ORIGINS: list[str] = os.getenv("ALLOW_ORIGINS", "").split(",")
+
 
 settings = Settings()
 
-SECRET = 'SECRET'
+SECRET = "SECRET"
