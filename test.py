@@ -1,8 +1,15 @@
-from sqlalchemy import create_engine, text
+# 检查数据库里有没有名字就是 "初音" 的
+from app.utils.text_forms import generate_all_forms
 
-# 注意这里要用 psycopg3 前缀
-engine = create_engine("postgresql+psycopg://vocawiki:vocawiki@localhost:5432/vocawiki", echo=True)
 
-with engine.connect() as conn:
-    result = conn.execute(text("SELECT 1"))
-    print(result.scalar())  # 应该输出 1
+# 打印 exact_index 里 "初音" 这个 key 有哪些实体
+async def debug_search():
+    idx = await data_store.get("search_index_vocalist")
+
+    # 检查精确匹配
+    if "初音" in idx["exact_index"]:
+        print("exact_index['初音']:", idx["exact_index"]["初音"][:5])
+
+    # 检查前缀索引
+    if "初音" in idx["prefix_index"]:
+        print("prefix_index['初音']:", idx["prefix_index"]["初音"][:5])

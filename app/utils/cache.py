@@ -2,13 +2,23 @@
 from typing import Dict, Set, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, Table
-from ..models import Producer, Synthesizer, Vocalist, Uploader, Song, Video, song_producer, song_synthesizer, song_vocalist
+from ..models import (
+    Producer,
+    Synthesizer,
+    Vocalist,
+    Uploader,
+    Song,
+    Video,
+    song_producer,
+    song_synthesizer,
+    song_vocalist,
+)
 from typing import Any
 
 type ORMTable = Producer | Synthesizer | Vocalist | Uploader
 
-class Cache:
 
+class Cache:
     """
     请求级缓存，用于函数间传递和更新。
     每次请求创建一个实例，不共享全局数据。
@@ -42,13 +52,14 @@ class Cache:
         result = await session.execute(select(Video.bvid, Video.song_id))
         self.video_map = {r[0]: r[1] for r in result.all()}
 
-    async def load_song_artist_relations(self, session: AsyncSession, rel_tables: Dict[type, Table]):
+    async def load_song_artist_relations(
+        self, session: AsyncSession, rel_tables: Dict[type, Table]
+    ):
         """按需加载歌曲-艺术家关系"""
         for cls, table in rel_tables.items():
             result = await session.execute(select(table.c.song_id, table.c.artist_id))
-            self.song_artist_maps[cls] = set(result.tuples().all()) 
+            self.song_artist_maps[cls] = set(result.tuples().all())
 
-            
     def has_videos(self) -> bool:
         return bool(self.video_map)
 
@@ -62,7 +73,7 @@ class Cache:
     def has_song_artist_relations(self) -> bool:
         # 至少有一个类的关系非空就算有
         return any(bool(s) for s in self.song_artist_maps.values())
-    
+
     # ---------- 统一懒加载方法 ----------
     async def ensure_loaded(self, session, cache_keys: list[str]):
         """
@@ -72,20 +83,20 @@ class Cache:
         cache_keys: 需要保证加载的缓存列表，可选值：
             'video_map', 'song_map', 'artist_maps', 'song_artist_maps'
         """
-        if 'video_map' in cache_keys and not self.has_videos():
+        if "video_map" in cache_keys and not self.has_videos():
             await self.load_videos(session)
 
-        if 'song_map' in cache_keys and not self.has_songs():
+        if "song_map" in cache_keys and not self.has_songs():
             await self.load_songs(session)
 
-        if 'artist_maps' in cache_keys and not self.has_artists():
+        if "artist_maps" in cache_keys and not self.has_artists():
             tables = [Producer, Synthesizer, Vocalist, Uploader]
             await self.load_artists(session, tables)
 
-        if 'song_artist_maps' in cache_keys and not self.has_song_artist_relations():
+        if "song_artist_maps" in cache_keys and not self.has_song_artist_relations():
             rel_tables = {
                 Producer: song_producer,
                 Synthesizer: song_synthesizer,
-                Vocalist: song_vocalist
+                Vocalist: song_vocalist,
             }
             await self.load_song_artist_relations(session, rel_tables)

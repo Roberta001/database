@@ -3,8 +3,9 @@ import os
 from dotenv import load_dotenv
 
 # 判断使用哪个 env 文件
-env_file = '.env'
+env_file = ".env"
 load_dotenv(dotenv_path=env_file)
+
 
 class Settings:
     APP_ENV: str = os.getenv("APP_ENV", "development")
